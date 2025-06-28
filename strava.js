@@ -92,7 +92,6 @@ function encryptMessage() {
 
         const packet = `${encrypted}|${key}|${seed}`;
         saveMessage(user, recipient, packet, message);
-        showChats(user);
     } catch (err) {
         alert("Ошибка шифрования: " + err.message);
     }
@@ -116,8 +115,10 @@ function decryptMessage() {
 }
 
 function saveMessage(from, to, encryptedPacket, originalText) {
-    const key = `${from}-${to}`;
-    db.ref("messages/" + key).push({
+    const ref = db.ref("messages").push();
+    ref.set({
+        from,
+        to,
         time: new Date().toISOString(),
         text: originalText,
         cipher: encryptedPacket
@@ -127,15 +128,17 @@ function saveMessage(from, to, encryptedPacket, originalText) {
 function showChats(currentUser) {
     const list = document.getElementById("chatList");
     list.innerHTML = "";
-    db.ref("messages").once("value", snapshot => {
+    db.ref("messages").on("value", snapshot => {
         const data = snapshot.val() || {};
-        for (let key in data) {
-            if (!key.startsWith(currentUser + "-")) continue;
-            Object.values(data[key]).forEach(msg => {
+        for (let id in data) {
+            const msg = data[id];
+            if (msg.from === currentUser || msg.to === currentUser) {
                 const li = document.createElement("li");
-                li.innerHTML = `<strong>${key}</strong><br>📝 ${msg.text}<br>🔐 ${msg.cipher}`;
+                const sender = msg.from === currentUser ? "🟢 Вы" : `👤 ${msg.from}`;
+                const receiver = msg.to === currentUser ? "🟢 Вам" : `📩 ${msg.to}`;
+                li.innerHTML = `<strong>${sender} → ${receiver}</strong><br>📝 ${msg.text}<br>🔐 ${msg.cipher}`;
                 list.appendChild(li);
-            });
+            }
         }
     });
 }
