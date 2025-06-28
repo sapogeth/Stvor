@@ -1,3 +1,13 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyC10SFqDWCZRpScbeXGTicz82JArs9sKeY",
+  authDomain: "strava-acb02.firebaseapp.com",
+  databaseURL: "https://strava-acb02-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "strava-acb02",
+  storageBucket: "strava-acb02.firebasestorage.app",
+  messagingSenderId: "824827518683",
+  appId: "1:824827518683:web:3839d038de2a1d88da76fe",
+  measurementId: "G-96FJDKB2H3"
+};
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
