@@ -12,6 +12,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let currentUser;
+
 window.addEventListener("DOMContentLoaded", () => {
   currentUser = localStorage.getItem("user");
   if (!currentUser) {
@@ -24,9 +25,11 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Подставим имя в поле (если есть input с id="username")
   const usernameField = document.getElementById("username");
   if (usernameField) usernameField.value = currentUser;
+
+  showChats(currentUser);
+});
 
 function encryptMessage() {
   const from = currentUser;
