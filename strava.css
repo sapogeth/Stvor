@@ -1,0 +1,54 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f9f9f9;
+    margin: 20px;
+    padding: 0;
+    color: #333;
+}
+
+h1, h2 {
+    color: #444;
+}
+
+.input-group {
+    margin-bottom: 10px;
+}
+
+.input-group input {
+    padding: 8px;
+    width: 45%;
+    margin-right: 5%;
+}
+
+textarea {
+    width: 96%;
+    height: 100px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.button-group button {
+    padding: 10px 15px;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+
+#result {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+#chatList {
+    list-style: none;
+    padding: 0;
+}
+
+#chatList li {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 8px;
+    margin-bottom: 8px;
+}
