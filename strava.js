@@ -1,6 +1,6 @@
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
 
-// Инициализация Firebase
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyC10SFqDWCZRpScbeXGTicz82JArs9sKeY",
   authDomain: "strava-acb02.firebaseapp.com",
@@ -12,6 +12,18 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+let currentUser = localStorage.getItem("user");
+if (!currentUser) {
+    currentUser = prompt("Введите ваше имя:");
+    if (currentUser) {
+        localStorage.setItem("user", currentUser);
+    } else {
+        alert("Имя обязательно!");
+        location.reload();
+    }
+}
+document.getElementById("username").value = currentUser;
 
 function generateKey(from, to, seed = Date.now().toString(), length = 100) {
     const input = `${from}-${to}-${seed}`;
@@ -68,7 +80,7 @@ function decrypt(text, key) {
 
 function encryptMessage() {
     try {
-        const user = document.getElementById("username").value.trim();
+        const user = currentUser;
         const recipient = document.getElementById("recipient").value.trim();
         const message = document.getElementById("message").value;
         if (!user || !recipient || !message) return alert("Введите имя, получателя и сообщение!");
@@ -173,21 +185,4 @@ function sha512(str) {
     return (sum.toString(16).repeat(64)).substr(0, 128);
 }
 
-// Вызов showChats при загрузке, если имя уже сохранено
-window.addEventListener("load", () => {
-    const storedUser = localStorage.getItem("currentUser");
-    if (storedUser) {
-        document.getElementById("username").value = storedUser;
-        showChats(storedUser);
-    }
-});
-
-// Сохраняем имя пользователя и обновляем чат при его вводе
-document.getElementById("username").addEventListener("change", () => {
-    const user = document.getElementById("username").value.trim();
-    if (user) {
-        localStorage.setItem("currentUser", user);
-        showChats(user);
-    }
-});
-
+showChats(currentUser);
