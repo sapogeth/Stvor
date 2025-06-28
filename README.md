@@ -4,6 +4,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Strava Social</title>
   <link rel="stylesheet" href="strava.css" />
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="strava.js"></script>
 </head>
 <body>
   <h1>💬 Strava Social</h1>
