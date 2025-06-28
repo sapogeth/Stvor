@@ -172,3 +172,22 @@ function sha512(str) {
     }
     return (sum.toString(16).repeat(64)).substr(0, 128);
 }
+
+// Вызов showChats при загрузке, если имя уже сохранено
+window.addEventListener("load", () => {
+    const storedUser = localStorage.getItem("currentUser");
+    if (storedUser) {
+        document.getElementById("username").value = storedUser;
+        showChats(storedUser);
+    }
+});
+
+// Сохраняем имя пользователя и обновляем чат при его вводе
+document.getElementById("username").addEventListener("change", () => {
+    const user = document.getElementById("username").value.trim();
+    if (user) {
+        localStorage.setItem("currentUser", user);
+        showChats(user);
+    }
+});
+
