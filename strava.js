@@ -24,36 +24,6 @@ if (!currentUser) {
 }
 document.getElementById("username").value = currentUser;
 
-function encrypt(text, key) {
-    let result = "";
-    for (let i = 0; i < text.length; i++) {
-        let char = text[i];
-        if (!ALPHABET.includes(char)) {
-            result += char;
-            continue;
-        }
-        let shift = ALPHABET.indexOf(key[i % key.length]);
-        let newIndex = (ALPHABET.indexOf(char) + shift) % ALPHABET.length;
-        result += ALPHABET[newIndex];
-    }
-    return result;
-}
-
-function decrypt(text, key) {
-    let result = "";
-    for (let i = 0; i < text.length; i++) {
-        let char = text[i];
-        if (!ALPHABET.includes(char)) {
-            result += char;
-            continue;
-        }
-        let shift = ALPHABET.indexOf(key[i % key.length]);
-        let newIndex = (ALPHABET.indexOf(char) - shift + ALPHABET.length) % ALPHABET.length;
-        result += ALPHABET[newIndex];
-    }
-    return result;
-}
-
 function encryptMessage() {
     try {
         const user = currentUser;
@@ -61,9 +31,12 @@ function encryptMessage() {
         const message = document.getElementById("message").value;
         if (!user || !recipient || !message) return alert("Введите имя, получателя и сообщение!");
 
-        const seed = Date.now().toString();
-        const key = generateKey(user, recipient, seed);
-        const encrypted = encrypt(message, key);
+        alert("🔐 Шифрование временно отключено для защиты алгоритма.");
+
+        const encrypted = "[ЗАЩИЩЕНО]";
+        const seed = "[ЗАЩИЩЕНО]";
+        const key = "[ЗАЩИЩЕНО]";
+        const packet = `${encrypted}|${key}|${seed}`;
 
         const resultBlock = document.getElementById("result");
         const output = document.createElement("div");
@@ -74,11 +47,10 @@ function encryptMessage() {
             📝 <b>Сообщение:</b> ${message}<br>
             🔐 <b>Шифр:</b> ${encrypted}<br>
             🧬 <b>Seed:</b> ${seed}<br>
-            📦 <b>Пакет:</b> ${encrypted}|${key}|${seed}
+            📦 <b>Пакет:</b> ${packet}
         `;
         resultBlock.appendChild(output);
 
-        const packet = `${encrypted}|${key}|${seed}`;
         saveMessage(user, recipient, packet, message);
     } catch (err) {
         alert("Ошибка шифрования: " + err.message);
@@ -86,20 +58,7 @@ function encryptMessage() {
 }
 
 function decryptMessage() {
-    try {
-        const packet = document.getElementById("message").value.trim();
-        const parts = packet.split("|");
-        if (parts.length !== 3) throw new Error("Формат: шифр|ключ|seed");
-
-        const [cipher, key, seed] = parts;
-        const decrypted = decrypt(cipher, key);
-        const resultBlock = document.getElementById("result");
-        const output = document.createElement("div");
-        output.innerHTML = `📨 <b>Расшифровка:</b> ${decrypted}`;
-        resultBlock.appendChild(output);
-    } catch (err) {
-        alert("Ошибка расшифровки: " + err.message);
-    }
+    alert("🔓 Расшифровка временно отключена для защиты алгоритма.");
 }
 
 function saveMessage(from, to, encryptedPacket, originalText) {
@@ -149,16 +108,6 @@ function clearMessages() {
     document.getElementById("chatList").innerHTML = "";
     document.getElementById("result").innerHTML = "";
     alert("Все сообщения удалены.");
-}
-
-function sha512(str) {
-    const utf8 = new TextEncoder().encode(str);
-    const hex = Array.from(utf8).map(b => b.toString(16).padStart(2, "0")).join("");
-    let sum = 0;
-    for (let i = 0; i < hex.length; i++) {
-        sum += parseInt(hex[i], 16) * (i + 1);
-    }
-    return (sum.toString(16).repeat(64)).substr(0, 128);
 }
 
 showChats(currentUser);
