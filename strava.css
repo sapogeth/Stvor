@@ -1,46 +1,5 @@
-body {
-    background: #0f0f0f;
-    color: #f0f0f0;
-    font-family: sans-serif;
-    padding: 20px;
-}
-input, textarea {
-    width: 100%;
-    margin: 5px 0;
-    padding: 10px;
-    background: #1a1a1a;
-    border: none;
-    color: white;
-    border-radius: 6px;
-}
-textarea {
-    height: 80px;
-}
-button {
-    margin: 5px;
-    padding: 10px 20px;
-    border: none;
-    background: #6200ea;
-    color: white;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-button:hover {
-    background: #3700b3;
-}
-#result, #chatList {
-    margin-top: 20px;
-    background: #1c1c1c;
-    padding: 10px;
-    border-radius: 8px;
-}
-ul#chatList {
-    list-style: none;
-    padding: 0;
-}
-ul#chatList li {
-    margin-bottom: 10px;
-    border-bottom: 1px solid #333;
-    padding-bottom: 5px;
-}
+body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
+input, textarea { width: 100%; margin: 5px 0; padding: 8px; }
+button { margin: 5px; padding: 8px 12px; }
+#chatList { margin-top: 20px; list-style: none; padding: 0; }
+#chatList li { margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
