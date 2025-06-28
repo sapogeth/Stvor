@@ -4,6 +4,7 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 const firebaseConfig = {
   apiKey: "AIzaSyC10SFqDWCZRpScbeXGTicz82JArs9sKeY",
   authDomain: "strava-acb02.firebaseapp.com",
+  databaseURL: "https://strava-acb02-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "strava-acb02",
   storageBucket: "strava-acb02.firebasestorage.app",
   messagingSenderId: "824827518683",
