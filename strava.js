@@ -11,17 +11,22 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let currentUser = localStorage.getItem("user");
-if (!currentUser) {
-  currentUser = prompt("Введите ваше имя:");
-  if (currentUser) {
-    localStorage.setItem("user", currentUser);
-  } else {
-    alert("Имя обязательно!");
-    location.reload();
+let currentUser;
+window.addEventListener("DOMContentLoaded", () => {
+  currentUser = localStorage.getItem("user");
+  if (!currentUser) {
+    currentUser = prompt("Введите ваше имя:");
+    if (currentUser) {
+      localStorage.setItem("user", currentUser);
+    } else {
+      alert("Имя обязательно!");
+      location.reload();
+    }
   }
-}
-document.getElementById("username").value = currentUser;
+
+  // Подставим имя в поле (если есть input с id="username")
+  const usernameField = document.getElementById("username");
+  if (usernameField) usernameField.value = currentUser;
 
 function encryptMessage() {
   const from = currentUser;
