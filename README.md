@@ -3,10 +3,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stvor Social</title>
-  <link rel="stylesheet" href="strava.css">
+  <link rel="stylesheet" href="stvor.css">
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="strava.js"></script>
+  <script src="stvor.js"></script>
 </head>
 <body>
   <h1>💬 Stvor Social</h1>
@@ -21,6 +21,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="strava.js"></script>
+  <script src="stvor.js"></script>
 </body>
 </html>
