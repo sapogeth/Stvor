@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -6,7 +5,7 @@
     <link rel="stylesheet" href="strava.css">
 </head>
 <body>
-    <h1>🔐 Stravaр</h1>
+    <h1>🔐 Strava</h1>
 
     <div class="input-group">
         <input type="text" id="username" placeholder="Ваше имя">
