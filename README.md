@@ -1,33 +1,27 @@
+
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Strava Chat — Ilyazh Encrypt</title>
+    <title>Strava - Социальный шифратор</title>
     <link rel="stylesheet" href="strava.css">
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 </head>
 <body>
-    <h1>🔐 Strava</h1>
-
-    <div class="input-group">
-        <input type="text" id="username" placeholder="Ваше имя">
-        <input type="text" id="recipient" placeholder="Кому отправить">
+    <h1>📡 Strava</h1>
+    <input type="text" id="username" placeholder="Ваше имя" disabled>
+    <input type="text" id="recipient" placeholder="Кому">
+    <textarea id="message" placeholder="Введите сообщение..."></textarea>
+    <div class="buttons">
+        <button onclick="encryptMessage()">Зашифровать</button>
+        <button onclick="decryptMessage()">Расшифровать</button>
+        <button onclick="exportMessages()">Экспорт</button>
+        <button onclick="clearMessages()">Очистить</button>
     </div>
-
-    <textarea id="message" placeholder="Введите сообщение или пакет для расшифровки..."></textarea>
-
-    <div class="button-group">
-        <button onclick="encryptMessage()">🔒 Зашифровать</button>
-        <button onclick="decryptMessage()">🔓 Расшифровать</button>
-        <button onclick="exportMessages()">💾 Экспорт</button>
-        <button onclick="clearMessages()">🧹 Очистить</button>
-    </div>
-
     <div id="result"></div>
-
-    <h2>📜 Переписка</h2>
     <ul id="chatList"></ul>
 
+    <!-- Firebase и основной JS -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="strava.js"></script>
 </body>
 </html>
