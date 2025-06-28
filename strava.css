@@ -1,54 +1,46 @@
 body {
-    font-family: Arial, sans-serif;
-    background: #f9f9f9;
-    margin: 20px;
-    padding: 0;
-    color: #333;
+    background: #0f0f0f;
+    color: #f0f0f0;
+    font-family: sans-serif;
+    padding: 20px;
 }
-
-h1, h2 {
-    color: #444;
+input, textarea {
+    width: 100%;
+    margin: 5px 0;
+    padding: 10px;
+    background: #1a1a1a;
+    border: none;
+    color: white;
+    border-radius: 6px;
 }
-
-.input-group {
-    margin-bottom: 10px;
-}
-
-.input-group input {
-    padding: 8px;
-    width: 45%;
-    margin-right: 5%;
-}
-
 textarea {
-    width: 96%;
-    height: 100px;
-    padding: 10px;
-    margin-bottom: 10px;
+    height: 80px;
 }
-
-.button-group button {
-    padding: 10px 15px;
-    margin-right: 10px;
-    margin-bottom: 10px;
+button {
+    margin: 5px;
+    padding: 10px 20px;
+    border: none;
+    background: #6200ea;
+    color: white;
+    border-radius: 8px;
     cursor: pointer;
+    transition: 0.2s;
 }
-
-#result {
-    background: #fff;
-    border: 1px solid #ddd;
+button:hover {
+    background: #3700b3;
+}
+#result, #chatList {
+    margin-top: 20px;
+    background: #1c1c1c;
     padding: 10px;
-    margin-bottom: 20px;
+    border-radius: 8px;
 }
-
-#chatList {
+ul#chatList {
     list-style: none;
     padding: 0;
 }
-
-#chatList li {
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 8px;
-    margin-bottom: 8px;
+ul#chatList li {
+    margin-bottom: 10px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 5px;
 }
