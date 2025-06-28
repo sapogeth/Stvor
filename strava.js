@@ -1,5 +1,18 @@
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
 
+// Инициализация Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyC10SFqDWCZRpScbeXGTicz82JArs9sKeY",
+  authDomain: "strava-acb02.firebaseapp.com",
+  projectId: "strava-acb02",
+  storageBucket: "strava-acb02.firebasestorage.app",
+  messagingSenderId: "824827518683",
+  appId: "1:824827518683:web:3839d038de2a1d88da76fe",
+  measurementId: "G-96FJDKB2H3"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 function generateKey(from, to, seed = Date.now().toString(), length = 100) {
     const input = `${from}-${to}-${seed}`;
     let hash = sha512(input);
@@ -104,39 +117,32 @@ function decryptMessage() {
 
 function saveMessage(from, to, encryptedPacket, originalText) {
     const key = `${from}-${to}`;
-    let messages = {};
-    try {
-        messages = JSON.parse(localStorage.getItem("ilyazh_messages") || "{}");
-    } catch (e) {
-        messages = {};
-    }
-    if (!messages[key]) messages[key] = [];
-    messages[key].push({ time: new Date().toISOString(), text: originalText, cipher: encryptedPacket });
-    localStorage.setItem("ilyazh_messages", JSON.stringify(messages));
+    db.ref("messages/" + key).push({
+        time: new Date().toISOString(),
+        text: originalText,
+        cipher: encryptedPacket
+    });
 }
 
 function showChats(currentUser) {
     const list = document.getElementById("chatList");
     list.innerHTML = "";
-    let messages = {};
-    try {
-        messages = JSON.parse(localStorage.getItem("ilyazh_messages") || "{}");
-    } catch (e) {
-        messages = {};
-    }
-    for (let key in messages) {
-        if (!key.startsWith(currentUser + "-")) continue;
-        messages[key].slice(-10).forEach(msg => {
-            const li = document.createElement("li");
-            li.innerHTML = `<strong>${key}</strong><br>📝 ${msg.text}<br>🔐 ${msg.cipher}`;
-            list.appendChild(li);
-        });
-    }
+    db.ref("messages").once("value", snapshot => {
+        const data = snapshot.val() || {};
+        for (let key in data) {
+            if (!key.startsWith(currentUser + "-")) continue;
+            Object.values(data[key]).forEach(msg => {
+                const li = document.createElement("li");
+                li.innerHTML = `<strong>${key}</strong><br>📝 ${msg.text}<br>🔐 ${msg.cipher}`;
+                list.appendChild(li);
+            });
+        }
+    });
 }
 
 function exportMessages() {
-    try {
-        const data = localStorage.getItem("ilyazh_messages") || "{}";
+    db.ref("messages").once("value", snapshot => {
+        const data = JSON.stringify(snapshot.val() || {});
         const blob = new Blob([data], { type: "application/json" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
@@ -144,13 +150,11 @@ function exportMessages() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    } catch (e) {
-        alert("Ошибка экспорта: " + e.message);
-    }
+    });
 }
 
 function clearMessages() {
-    localStorage.removeItem("ilyazh_messages");
+    db.ref("messages").remove();
     document.getElementById("chatList").innerHTML = "";
     document.getElementById("result").innerHTML = "";
     alert("Все сообщения удалены.");
