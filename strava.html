@@ -3,34 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Strava - Социальный шифратор</title>
+  <title>Strava – Социальный менеджер</title>
   <link rel="stylesheet" href="strava.css" />
 
-  <!-- Firebase SDK -->
+  <!-- Firebase SDK — обязательно -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
-  <h1>📡 Strava</h1>
+  <h1>📡 Strava (без шифра)</h1>
 
-  <!-- Ввод данных -->
   <input type="text" id="username" placeholder="Ваше имя" disabled />
   <input type="text" id="recipient" placeholder="Кому" />
   <textarea id="message" placeholder="Введите сообщение..."></textarea>
 
-  <!-- Кнопки -->
   <div class="buttons">
-    <button onclick="encryptMessage()">Зашифровать</button>
-    <button onclick="decryptMessage()">Расшифровать</button>
-    <button onclick="exportMessages()">Экспорт</button>
-    <button onclick="clearMessages()">Очистить</button>
+    <button onclick="encryptMessage()">Отправить (текст)</button>
+    <button onclick="decryptMessage()">Расшифровать (нет шифра)</button>
+    <button onclick="exportMessages()">💾 Экспорт</button>
+    <button onclick="clearMessages()">🧹 Очистить</button>
   </div>
 
-  <!-- Результаты и переписка -->
   <div id="result"></div>
   <ul id="chatList"></ul>
 
-  <!-- Скрипт -->
   <script src="strava.js"></script>
 </body>
 </html>
