@@ -12,102 +12,76 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// Имя через prompt, однократно
 let currentUser = localStorage.getItem("user");
 if (!currentUser) {
-    currentUser = prompt("Введите ваше имя:");
-    if (currentUser) {
-        localStorage.setItem("user", currentUser);
-    } else {
-        alert("Имя обязательно!");
-        location.reload();
-    }
+  currentUser = prompt("Введите ваше имя:");
+  if (!currentUser) return alert("Имя обязательно! Перезагрузите страницу.");
+  localStorage.setItem("user", currentUser);
 }
 document.getElementById("username").value = currentUser;
 
+// Отправка "сырого" текста
 function encryptMessage() {
-    try {
-        const user = currentUser;
-        const recipient = document.getElementById("recipient").value.trim();
-        const message = document.getElementById("message").value;
-        if (!user || !recipient || !message) return alert("Введите имя, получателя и сообщение!");
+  const from = currentUser;
+  const to = document.getElementById("recipient").value.trim();
+  const text = document.getElementById("message").value;
+  if (!from || !to || !text) return alert("Введите имя получателя и сообщение!");
 
-        alert("🔐 Шифрование временно отключено для защиты алгоритма.");
+  const packet = text; // без шифра
 
-        const encrypted = "[ЗАЩИЩЕНО]";
-        const seed = "[ЗАЩИЩЕНО]";
-        const key = "[ЗАЩИЩЕНО]";
-        const packet = `${encrypted}|${key}|${seed}`;
+  // Отобразим результат
+  const div = document.createElement("div");
+  div.innerHTML = `<strong>${from} → ${to}</strong><br>Сообщение: ${text}`;
+  document.getElementById("result").prepend(div);
 
-        const resultBlock = document.getElementById("result");
-        const output = document.createElement("div");
-        output.innerHTML = `
-            <hr>
-            👤 <b>От:</b> ${user}<br>
-            📨 <b>Кому:</b> ${recipient}<br>
-            📝 <b>Сообщение:</b> ${message}<br>
-            🔐 <b>Шифр:</b> ${encrypted}<br>
-            🧬 <b>Seed:</b> ${seed}<br>
-            📦 <b>Пакет:</b> ${packet}
-        `;
-        resultBlock.appendChild(output);
+  // Сохраняем в базу
+  db.ref("messages").push({
+    from, to, time: Date.now(),
+    text: text, cipher: packet
+  });
 
-        saveMessage(user, recipient, packet, message);
-    } catch (err) {
-        alert("Ошибка шифрования: " + err.message);
-    }
+  showChats();
 }
 
 function decryptMessage() {
-    alert("🔓 Расшифровка временно отключена для защиты алгоритма.");
+  alert("🔓 Шифрование отключено — расшифровка недоступна.");
 }
 
-function saveMessage(from, to, encryptedPacket, originalText) {
-    const ref = db.ref("messages").push();
-    ref.set({
-        from,
-        to,
-        time: new Date().toISOString(),
-        text: originalText,
-        cipher: encryptedPacket
-    });
-}
+// Отображение входящих/исходящих
+function showChats() {
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  db.ref("messages").off();
 
-function showChats(currentUser) {
-    const list = document.getElementById("chatList");
-    list.innerHTML = "";
-    db.ref("messages").on("value", snapshot => {
-        const data = snapshot.val() || {};
-        for (let id in data) {
-            const msg = data[id];
-            if (msg.from === currentUser || msg.to === currentUser) {
-                const li = document.createElement("li");
-                const sender = msg.from === currentUser ? "🟢 Вы" : `👤 ${msg.from}`;
-                const receiver = msg.to === currentUser ? "🟢 Вам" : `📩 ${msg.to}`;
-                li.innerHTML = `<strong>${sender} → ${receiver}</strong><br>📝 ${msg.text}<br>🔐 ${msg.cipher}`;
-                list.appendChild(li);
-            }
-        }
+  db.ref("messages").orderByChild("time")
+    .on("child_added", snap => {
+      const m = snap.val();
+      if (m.from === currentUser || m.to === currentUser) {
+        const li = document.createElement("li");
+        const who = m.from === currentUser ? "🟢 Вы" : `👤 ${m.from}`;
+        const target = m.to === currentUser ? "🟢 Вам" : m.to;
+        li.innerHTML = `<strong>${who} → ${target}</strong><br>${m.text}`;
+        list.appendChild(li);
+      }
     });
 }
 
 function exportMessages() {
-    db.ref("messages").once("value", snapshot => {
-        const data = JSON.stringify(snapshot.val() || {});
-        const blob = new Blob([data], { type: "application/json" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "ilyazh_chats.json";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
+  db.ref("messages").once("value", snap => {
+    const data = JSON.stringify(snap.val() || {});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    a.download = "messages.json";
+    a.click();
+  });
 }
 
 function clearMessages() {
-    db.ref("messages").remove();
-    document.getElementById("chatList").innerHTML = "";
-    document.getElementById("result").innerHTML = "";
-    alert("Все сообщения удалены.");
+  db.ref("messages").remove();
+  document.getElementById("result").innerHTML = "";
+  document.getElementById("chatList").innerHTML = "";
+  alert("Переписка очищена.");
 }
 
-showChats(currentUser);
+showChats();
