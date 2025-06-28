@@ -1,5 +1,3 @@
-const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
-
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyC10SFqDWCZRpScbeXGTicz82JArs9sKeY",
@@ -25,29 +23,6 @@ if (!currentUser) {
     }
 }
 document.getElementById("username").value = currentUser;
-
-function generateKey(from, to, seed = Date.now().toString(), length = 100) {
-    const input = `${from}-${to}-${seed}`;
-    let hash = sha512(input);
-    let key = "";
-    let used = [];
-    let i = 0;
-    while (key.length < length && i * 2 + 2 <= hash.length) {
-        let chunk = hash.substr(i * 2, 2);
-        let index = parseInt(chunk, 16) % ALPHABET.length;
-        let char = ALPHABET[index];
-        if (!used.includes(char)) {
-            key += char;
-            used.push(char);
-            if (used.length > 15) used.shift();
-        }
-        i++;
-    }
-    while (key.length < length) {
-        key += ALPHABET[(key.length * 13) % ALPHABET.length];
-    }
-    return key;
-}
 
 function encrypt(text, key) {
     let result = "";
