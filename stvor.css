@@ -1,26 +1,70 @@
 body {
   font-family: Arial, sans-serif;
-  max-width: 600px;
-  margin: 0 auto;
+  background: #0d1117;
+  color: #c9d1d9;
+  margin: 0;
   padding: 20px;
-  background: #f5f5f5;
 }
+
+.container {
+  max-width: 600px;
+  margin: auto;
+  background: #161b22;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
 h1 {
   text-align: center;
+  margin-bottom: 20px;
+  color: #58a6ff;
 }
-input, textarea, button {
+
+input, textarea {
   width: 100%;
-  margin: 5px 0;
+  margin-bottom: 10px;
   padding: 10px;
-  font-size: 16px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #c9d1d9;
 }
-ul {
-  list-style: none;
+
+.buttons {
+  display: flex;
+  justify-content: space-between;
+}
+
+button {
+  flex: 1;
+  margin-right: 5px;
+  padding: 10px;
+  background: #238636;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:last-child {
+  margin-right: 0;
+}
+
+button:hover {
+  background: #2ea043;
+}
+
+#chatList {
+  list-style-type: none;
   padding: 0;
+  margin-top: 20px;
 }
-li {
-  background: #fff;
-  margin: 5px 0;
+
+#chatList li {
+  background: #21262d;
   padding: 10px;
-  border-radius: 8px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  margin-bottom: 10px;
 }
