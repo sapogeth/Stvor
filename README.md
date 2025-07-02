@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,21 +7,19 @@
   <link rel="stylesheet" href="stvor.css">
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="stvor.js"></script>
+  <script defer src="stvor.js"></script>
 </head>
 <body>
-  <h1>💬 Stvor Social</h1>
-  <input type="text" id="username" readonly />
-  <input type="text" id="recipient" placeholder="Получатель" />
-  <textarea id="message" placeholder="Введите сообщение..."></textarea>
-  <button onclick="encryptMessage()">📤 Отправить</button>
-  <button onclick="clearMessages()">🗑 Очистить</button>
-  <button onclick="exportMessages()">⬇️ Экспорт</button>
-  <ul id="chatList"></ul>
-  <div id="result"></div>
-
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="stvor.js"></script>
+  <div class="container">
+    <h1>💬 Stvor Social</h1>
+    <input type="text" id="username" readonly />
+    <input type="text" id="recipient" placeholder="Получатель" />
+    <textarea id="message" placeholder="Введите сообщение..."></textarea>
+    <button onclick="encryptMessage()">📤 Отправить</button>
+    <button onclick="clearMessages()">🗑 Очистить</button>
+    <button onclick="exportMessages()">⬇️ Экспорт</button>
+    <ul id="chatList"></ul>
+    <div id="result"></div>
+  </div>
 </body>
 </html>
