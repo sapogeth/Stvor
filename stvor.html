@@ -1,73 +1,172 @@
-<!-- stvor.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Chat — Ilyazh Encrypt</title>
+    <title>Academic Secure Chat</title>
     <link rel="stylesheet" href="stvor.css">
-    <!-- Подключаем Firebase -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔐 Secure Chat</h1>
-            <p class="subtitle">End-to-End Encrypted Messaging</p>
-        </header>
-
-        <div class="card">
-            <div class="input-group">
-                <label for="username">Ваше имя</label>
-                <input type="text" id="username" placeholder="Введите ваше имя">
-                <label for="recipient">Получатель</label>
-                <input type="text" id="recipient" placeholder="Кому отправить">
-            </div>
-
-            <div class="message-container">
-                <label for="message">Сообщение</label>
-                <textarea id="message" placeholder="Введите сообщение или пакет для расшифровки..."></textarea>
-            </div>
-
-            <div class="button-group">
-                <button class="btn-primary" onclick="encryptMessage()">
-                    <span class="icon">🔒</span> Зашифровать
-                </button>
-                <button class="btn-secondary" onclick="decryptMessage()">
-                    <span class="icon">🔓</span> Расшифровать
-                </button>
-                <button class="btn-export" onclick="exportMessages()">
-                    <span class="icon">💾</span> Экспорт
-                </button>
-                <button class="btn-import" onclick="importMessages()">
-                    <span class="icon">📥</span> Импорт
-                </button>
-                <button class="btn-danger" onclick="clearMessages()">
-                    <span class="icon">🧹</span> Очистить
-                </button>
-            </div>
-        </div>
-
-        <div class="card result-card">
-            <h3>Результат</h3>
-            <div id="result"></div>
-        </div>
-
-        <div class="card chat-card">
-            <div class="chat-header">
-                <h3>📜 История переписки</h3>
-                <div class="search-container">
-                    <input type="text" id="searchInput" placeholder="Поиск...">
-                    <button onclick="searchMessages()">🔍</button>
+        <!-- Экран приветствия -->
+        <div id="welcomeScreen" class="welcome-screen">
+            <div class="welcome-card">
+                <div class="academic-header">
+                    <div class="university-logo">📚</div>
+                    <h1>Academic Secure Chat</h1>
+                    <p class="academic-subtitle">Защищённая коммуникация для научного сообщества</p>
+                </div>
+                
+                <div id="authForms">
+                    <div id="loginForm">
+                        <h2 class="form-title">Вход в систему</h2>
+                        <div class="input-group">
+                            <input type="text" id="loginUsername" placeholder="Ваш логин" class="academic-input">
+                        </div>
+                        <div class="input-group">
+                            <input type="password" id="loginPassword" placeholder="Ваш пароль" class="academic-input">
+                        </div>
+                        <div class="button-group">
+                            <button class="btn-academic" onclick="login()">Войти</button>
+                            <button class="btn-academic-secondary" onclick="showRegisterForm()">Регистрация</button>
+                        </div>
+                    </div>
+                    
+                    <div id="registerForm" style="display:none;">
+                        <h2 class="form-title">Регистрация</h2>
+                        <div class="input-group">
+                            <input type="text" id="regUsername" placeholder="Придумайте логин" class="academic-input">
+                        </div>
+                        <div class="input-group">
+                            <input type="password" id="regPassword" placeholder="Придумайте пароль" class="academic-input">
+                        </div>
+                        <div class="input-group">
+                            <input type="password" id="regConfirmPassword" placeholder="Повторите пароль" class="academic-input">
+                        </div>
+                        <div class="input-group">
+                            <input type="text" id="regFullName" placeholder="Ваше полное имя" class="academic-input">
+                        </div>
+                        <div class="button-group">
+                            <button class="btn-academic" onclick="register()">Зарегистрироваться</button>
+                            <button class="btn-academic-secondary" onclick="showLoginForm()">Назад</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="academic-footer">
+                    <p>Система защищённых коммуникаций<br>Кафедра криптографии и информационной безопасности</p>
                 </div>
             </div>
-            <ul id="chatList"></ul>
         </div>
-
-        <footer>
-            <p>Secure Chat v1.0 | End-to-End Encryption</p>
-        </footer>
+        
+        <!-- Основной интерфейс (показывается после входа) -->
+        <div id="mainApp" style="display:none;">
+            <header class="academic-header">
+                <div class="header-content">
+                    <div class="user-info">
+                        <div class="user-avatar">👤</div>
+                        <div>
+                            <h1>Academic Secure Chat</h1>
+                            <p class="subtitle">Вы вошли как: <span id="currentUserDisplay"></span></p>
+                        </div>
+                    </div>
+                    <button class="btn-logout" onclick="logout()">Выйти</button>
+                </div>
+                <nav class="academic-nav">
+                    <button class="nav-btn active" data-target="chatSection">Чаты</button>
+                    <button class="nav-btn" data-target="encryptSection">Шифрование</button>
+                    <button class="nav-btn" data-target="contactsSection">Контакты</button>
+                </nav>
+            </header>
+            
+            <!-- Секция чатов -->
+            <section id="chatSection" class="app-section">
+                <div class="chat-container">
+                    <div class="chat-sidebar">
+                        <div class="search-container">
+                            <input type="text" id="contactSearch" placeholder="Поиск пользователей..." class="academic-input">
+                            <button onclick="searchUsers()" class="btn-search">🔍</button>
+                        </div>
+                        <div class="chat-list-container">
+                            <ul id="chatList"></ul>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-main">
+                        <div class="chat-header" id="currentChatHeader">
+                            <h3>Выберите диалог</h3>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="empty-chat">
+                                <div class="empty-icon">💬</div>
+                                <p>Выберите диалог для просмотра сообщений</p>
+                            </div>
+                        </div>
+                        <div class="chat-input">
+                            <textarea id="chatMessageInput" placeholder="Введите сообщение..." class="academic-textarea"></textarea>
+                            <div class="chat-buttons">
+                                <button class="btn-academic" onclick="sendMessage()">Отправить</button>
+                                <button class="btn-academic-secondary" onclick="encryptSelected()">Зашифровать</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Секция шифрования -->
+            <section id="encryptSection" class="app-section" style="display:none;">
+                <div class="card academic-card">
+                    <h3 class="academic-title">Инструменты шифрования</h3>
+                    <div class="input-group">
+                        <label for="recipient">Получатель</label>
+                        <input type="text" id="recipient" placeholder="Логин получателя" class="academic-input">
+                    </div>
+                    
+                    <div class="message-container">
+                        <label for="message">Сообщение</label>
+                        <textarea id="message" placeholder="Введите текст для шифрования..." class="academic-textarea"></textarea>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn-academic" onclick="encryptMessage()">
+                            <span class="icon">🔒</span> Зашифровать
+                        </button>
+                        <button class="btn-academic-secondary" onclick="decryptMessage()">
+                            <span class="icon">🔓</span> Расшифровать
+                        </button>
+                        <button class="btn-export" onclick="exportMessages()">
+                            <span class="icon">💾</span> Экспорт
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card academic-card result-card">
+                    <h3 class="academic-title">Результат</h3>
+                    <div id="result"></div>
+                </div>
+            </section>
+            
+            <!-- Секция контактов -->
+            <section id="contactsSection" class="app-section" style="display:none;">
+                <div class="card academic-card">
+                    <h3 class="academic-title">Мои контакты</h3>
+                    <div class="search-container">
+                        <input type="text" id="userSearch" placeholder="Поиск пользователей..." class="academic-input">
+                        <button onclick="searchAllUsers()" class="btn-search">🔍</button>
+                    </div>
+                    <ul id="contactList" class="contact-list"></ul>
+                </div>
+            </section>
+            
+            <footer class="academic-footer">
+                <p>Academic Secure Chat v2.0 | Кафедра криптографии и информационной безопасности</p>
+                <p>Все сообщения защищены сквозным шифрованием</p>
+            </footer>
+        </div>
     </div>
 
     <script src="stvor.js"></script>
