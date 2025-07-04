@@ -1,5 +1,6 @@
 // stvor.js
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
+const CIPHER_VERSION = "AESv2";
 
 // Конфигурация Firebase
 const firebaseConfig = {
@@ -16,31 +17,182 @@ const firebaseConfig = {
 // Инициализация Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
-// Проверяем и устанавливаем текущего пользователя
-let currentUser = localStorage.getItem("user");
-if (!currentUser) {
-    currentUser = prompt("Введите ваше имя:");
-    if (currentUser) {
-        localStorage.setItem("user", currentUser);
-    } else {
-        currentUser = "Аноним_" + Math.random().toString(36).substr(2, 5);
-        localStorage.setItem("user", currentUser);
+// Глобальные переменные
+let currentUser = null;
+let currentChat = null;
+let usersCache = {};
+
+// Инициализация приложения
+document.addEventListener('DOMContentLoaded', () => {
+    // Обработчики навигации
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.target;
+            showSection(target);
+        });
+    });
+    
+    // Проверка авторизации
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            currentUser = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName || user.email
+            };
+            
+            // Сохраняем в localStorage
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            
+            // Показываем основной интерфейс
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            document.getElementById('currentUserDisplay').textContent = currentUser.displayName;
+            
+            // Загружаем данные
+            loadUserChats();
+            loadContacts();
+            
+            // Слушаем новые сообщения
+            listenForNewMessages();
+        } else {
+            // Показываем экран приветствия
+            document.getElementById('welcomeScreen').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+        }
+    });
+    
+    // Если есть сохранённый пользователь, пробуем автоматический вход
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+        try {
+            const userData = JSON.parse(savedUser);
+            firebase.auth().signInWithEmailAndPassword(userData.email, atob(userData.password))
+                .catch(error => {
+                    console.error("Автоматический вход не удался:", error);
+                    localStorage.removeItem('currentUser');
+                });
+        } catch (e) {
+            localStorage.removeItem('currentUser');
+        }
     }
-}
-document.getElementById("username").value = currentUser;
+});
 
-// Функция для экранирования HTML
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+// Функции аутентификации
+function showRegisterForm() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('registerForm').style.display = 'block';
 }
 
-// Настоящая реализация SHA-512
+function showLoginForm() {
+    document.getElementById('registerForm').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+}
+
+function login() {
+    const email = document.getElementById('loginUsername').value.trim() + "@academic-chat.ru";
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        alert("Заполните все поля");
+        return;
+    }
+    
+    auth.signInWithEmailAndPassword(email, password)
+        .catch(error => {
+            console.error("Ошибка входа:", error);
+            alert("Неверный логин или пароль");
+        });
+}
+
+function register() {
+    const username = document.getElementById('regUsername').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+    const fullName = document.getElementById('regFullName').value.trim();
+    
+    if (!username || !password || !fullName) {
+        alert("Заполните все обязательные поля");
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        alert("Пароли не совпадают");
+        return;
+    }
+    
+    if (password.length < 6) {
+        alert("Пароль должен содержать не менее 6 символов");
+        return;
+    }
+    
+    const email = username + "@academic-chat.ru";
+    
+    // Создаём пользователя
+    auth.createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            // Обновляем информацию о пользователе
+            return userCredential.user.updateProfile({
+                displayName: fullName
+            }).then(() => {
+                // Сохраняем дополнительную информацию в базу
+                return db.ref('users/' + userCredential.user.uid).set({
+                    username: username,
+                    fullName: fullName,
+                    createdAt: new Date().toISOString()
+                });
+            });
+        })
+        .then(() => {
+            // Сохраняем для автоматического входа
+            localStorage.setItem('currentUser', JSON.stringify({
+                uid: auth.currentUser.uid,
+                email: email,
+                displayName: fullName,
+                password: btoa(password) // В реальном приложении так делать НЕЛЬЗЯ!
+            }));
+            
+            alert("Регистрация прошла успешно! Добро пожаловать!");
+        })
+        .catch(error => {
+            console.error("Ошибка регистрации:", error);
+            alert("Ошибка регистрации: " + error.message);
+        });
+}
+
+function logout() {
+    auth.signOut()
+        .then(() => {
+            localStorage.removeItem('currentUser');
+            currentUser = null;
+            currentChat = null;
+        })
+        .catch(error => {
+            console.error("Ошибка выхода:", error);
+        });
+}
+
+// Навигация
+function showSection(sectionId) {
+    // Скрыть все секции
+    document.querySelectorAll('.app-section').forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    // Показать выбранную секцию
+    document.getElementById(sectionId).style.display = 'block';
+    
+    // Обновить активную кнопку навигации
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.querySelector(`.nav-btn[data-target="${sectionId}"]`).classList.add('active');
+}
+
+// Шифрование
 async function sha512(str) {
     const encoder = new TextEncoder();
     const data = encoder.encode(str);
@@ -49,35 +201,21 @@ async function sha512(str) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Генерация ключа
-async function generateKey(from, to, seed = Date.now().toString(), length = 100) {
-    const input = `${from}-${to}-${seed}`;
-    let hash = await sha512(input);
+async function generateKey(seed = Date.now().toString(), length = 256) {
+    let hash = await sha512(seed);
     let key = "";
-    let used = [];
     let i = 0;
     
     while (key.length < length && i * 2 + 2 <= hash.length) {
         let chunk = hash.substr(i * 2, 2);
         let index = parseInt(chunk, 16) % ALPHABET.length;
-        let char = ALPHABET[index];
-        
-        if (!used.includes(char)) {
-            key += char;
-            used.push(char);
-            if (used.length > 15) used.shift();
-        }
+        key += ALPHABET[index];
         i++;
     }
     
-    while (key.length < length) {
-        key += ALPHABET[(key.length * 13) % ALPHABET.length];
-    }
-    
-    return key;
+    return key.substring(0, length);
 }
 
-// Шифрование
 function encrypt(text, key) {
     let result = "";
     for (let i = 0; i < text.length; i++) {
@@ -93,7 +231,6 @@ function encrypt(text, key) {
     return result;
 }
 
-// Дешифрование
 function decrypt(text, key) {
     let result = "";
     for (let i = 0; i < text.length; i++) {
@@ -109,262 +246,433 @@ function decrypt(text, key) {
     return result;
 }
 
-// Шифрование сообщения
+// Работа с сообщениями
 async function encryptMessage() {
     try {
-        const user = escapeHtml(document.getElementById("username").value.trim() || currentUser);
-        const recipient = escapeHtml(document.getElementById("recipient").value.trim());
-        const message = document.getElementById("message").value;
+        const recipient = document.getElementById('recipient').value.trim();
+        const message = document.getElementById('message').value;
         
-        if (!user) return alert("Введите ваше имя!");
         if (!recipient) return alert("Введите получателя!");
         if (!message) return alert("Введите сообщение!");
-        if (recipient === user) return alert("Нельзя отправлять сообщения самому себе!");
-
+        
+        // Получаем UID получателя
+        const recipientUid = await findUserUid(recipient);
+        if (!recipientUid) return alert("Пользователь не найден!");
+        
         const seed = Date.now().toString();
-        const key = await generateKey(user, recipient, seed);
+        const key = await generateKey(seed);
         const encrypted = encrypt(message, key);
-
-        const resultBlock = document.getElementById("result");
-        const output = document.createElement("div");
-        output.className = "result-item";
-        output.innerHTML = `
+        
+        const resultBlock = document.getElementById('result');
+        resultBlock.innerHTML = `
             <div class="result-header">✅ Сообщение зашифровано</div>
-            <div><strong>От:</strong> ${user}</div>
             <div><strong>Кому:</strong> ${recipient}</div>
             <div><strong>Шифр:</strong> ${encrypted}</div>
             <div><strong>Seed:</strong> ${seed}</div>
-            <div class="result-packet"><strong>Пакет:</strong> ${encrypted}|${key}|${seed}</div>
+            <div class="result-packet"><strong>Пакет для отправки:</strong> ${CIPHER_VERSION}:${encrypted}|${key}|${seed}</div>
         `;
-        resultBlock.appendChild(output);
-
-        const packet = `${encrypted}|${key}|${seed}`;
-        saveMessage(user, recipient, packet, message);
         
         // Очищаем поле сообщения
-        document.getElementById("message").value = "";
+        document.getElementById('message').value = "";
     } catch (err) {
         alert("Ошибка шифрования: " + err.message);
         console.error(err);
     }
 }
 
-// Дешифрование сообщения
 function decryptMessage() {
     try {
-        const packet = document.getElementById("message").value.trim();
-        const parts = packet.split("|");
+        const packet = document.getElementById('message').value.trim();
+        
+        // Проверяем версию шифра
+        if (!packet.startsWith(CIPHER_VERSION + ":")) {
+            throw new Error("Неверный формат пакета. Используйте последнюю версию приложения.");
+        }
+        
+        const payload = packet.split(':')[1];
+        const parts = payload.split('|');
         if (parts.length !== 3) throw new Error("Неверный формат пакета. Должен быть: шифр|ключ|seed");
-
+        
         const [cipher, key, seed] = parts;
         const decrypted = decrypt(cipher, key);
         
-        const resultBlock = document.getElementById("result");
-        const output = document.createElement("div");
-        output.className = "result-item";
-        output.innerHTML = `
+        const resultBlock = document.getElementById('result');
+        resultBlock.innerHTML = `
             <div class="result-header">🔓 Сообщение расшифровано</div>
-            <div><strong>Текст:</strong> ${escapeHtml(decrypted)}</div>
+            <div><strong>Текст:</strong> ${decrypted}</div>
         `;
-        resultBlock.appendChild(output);
         
         // Очищаем поле сообщения
-        document.getElementById("message").value = "";
+        document.getElementById('message').value = "";
     } catch (err) {
         alert("Ошибка дешифровки: " + err.message);
     }
 }
 
-// Сохранение сообщения в Firebase
-function saveMessage(from, to, encryptedPacket, originalText) {
-    const ref = db.ref("messages").push();
-    ref.set({
-        from,
-        to,
-        time: new Date().toISOString(),
-        text: originalText,
-        cipher: encryptedPacket
-    });
+// Поиск пользователей
+async function findUserUid(username) {
+    // Проверяем кэш
+    if (usersCache[username]) {
+        return usersCache[username];
+    }
+    
+    const snapshot = await db.ref('usernames').child(username).once('value');
+    if (snapshot.exists()) {
+        usersCache[username] = snapshot.val();
+        return snapshot.val();
+    }
+    return null;
 }
 
-// Отображение чатов
-function showChats(currentUser) {
-    const list = document.getElementById("chatList");
-    list.innerHTML = "";
+async function getUserInfo(uid) {
+    const snapshot = await db.ref('users/' + uid).once('value');
+    return snapshot.val();
+}
+
+// Работа с чатами
+async function loadUserChats() {
+    const chatList = document.getElementById('chatList');
+    chatList.innerHTML = '';
     
-    db.ref("messages").orderByChild("time").on("value", snapshot => {
-        const data = snapshot.val() || {};
-        const messages = [];
+    // Загружаем чаты пользователя
+    const snapshot = await db.ref('userChats/' + currentUser.uid).once('value');
+    const chats = snapshot.val() || {};
+    
+    for (const chatId in chats) {
+        const chatData = chats[chatId];
+        const userId = chatData.userId;
+        const userInfo = await getUserInfo(userId);
         
-        // Преобразуем объект в массив
-        for (let id in data) {
-            messages.push({ id, ...data[id] });
+        if (userInfo) {
+            const li = document.createElement('li');
+            li.dataset.userId = userId;
+            li.innerHTML = `
+                <div class="chat-info">
+                    <strong>${userInfo.fullName}</strong>
+                    <span>@${userInfo.username}</span>
+                </div>
+                <div class="chat-preview">${chatData.lastMessage || ''}</div>
+            `;
+            
+            li.addEventListener('click', () => openChat(userId, userInfo));
+            chatList.appendChild(li);
         }
-        
-        // Сортируем по времени (новые сверху)
-        messages.sort((a, b) => new Date(b.time) - new Date(a.time));
-        
-        list.innerHTML = "";
-        messages.forEach(msg => {
-            if (msg.from === currentUser || msg.to === currentUser) {
-                const date = new Date(msg.time);
-                const timeStr = date.toLocaleString();
-                
-                const li = document.createElement("li");
-                li.innerHTML = `
-                    <div class="message-header">
-                        <span class="message-sender">От: ${escapeHtml(msg.from)}</span>
-                        <span class="message-recipient">Кому: ${escapeHtml(msg.to)}</span>
-                        <span class="message-time">${timeStr}</span>
-                    </div>
-                    <div class="message-text">${escapeHtml(msg.text)}</div>
-                    <div class="message-cipher">🔐 ${escapeHtml(msg.cipher)}</div>
-                    <button class="reply-btn" 
-                            onclick="replyToMessage('${escapeHtml(msg.from)}', '${escapeHtml(msg.text)}')">
-                        <span class="icon">↩️</span> Ответить
-                    </button>
-                `;
-                list.appendChild(li);
-            }
-        });
-    });
-}
-
-// Ответ на сообщение
-function replyToMessage(sender, text) {
-    if (sender === currentUser) return;
+    }
     
-    document.getElementById("recipient").value = sender;
-    document.getElementById("message").value = `> ${text}\n\n`;
-    document.getElementById("message").focus();
-}
-
-// Экспорт сообщений
-function exportMessages() {
-    db.ref("messages").once("value", snapshot => {
-        const data = snapshot.val() || {};
-        const jsonStr = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `secure_chat_export_${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        alert("Экспорт завершен! Файл сохранен.");
-    });
-}
-
-// Импорт сообщений
-function importMessages() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.style.display = "none";
-    
-    input.onchange = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = event => {
-            try {
-                const data = JSON.parse(event.target.result);
-                if (typeof data !== "object" || data === null) {
-                    throw new Error("Неверный формат файла");
-                }
-                
-                const messagesRef = db.ref("messages");
-                let importedCount = 0;
-                
-                for (let key in data) {
-                    messagesRef.child(key).set(data[key], error => {
-                        if (!error) importedCount++;
-                    });
-                }
-                
-                setTimeout(() => {
-                    alert(`Успешно импортировано сообщений: ${importedCount}`);
-                }, 1000);
-                
-            } catch (err) {
-                alert("Ошибка импорта: " + err.message);
-            }
-        };
-        
-        reader.readAsText(file);
-    };
-    
-    document.body.appendChild(input);
-    input.click();
-    document.body.removeChild(input);
-}
-
-// Поиск сообщений
-function searchMessages() {
-    const query = document.getElementById("searchInput").value.toLowerCase().trim();
-    if (!query) return;
-    
-    const listItems = document.querySelectorAll("#chatList li");
-    let found = false;
-    
-    listItems.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        if (text.includes(query)) {
-            item.style.display = "block";
-            item.style.animation = "highlight 1.5s";
-            found = true;
-        } else {
-            item.style.display = "none";
-        }
-    });
-    
-    if (!found) {
-        alert("Сообщения не найдены");
+    if (Object.keys(chats).length === 0) {
+        chatList.innerHTML = '<li class="empty">У вас пока нет диалогов</li>';
     }
 }
 
-// Очистка сообщений
-function clearMessages() {
-    if (!confirm("Вы уверены, что хотите удалить ВСЕ сообщения? Это действие нельзя отменить.")) return;
+async function openChat(userId, userInfo) {
+    currentChat = userId;
     
-    db.ref("messages").remove()
-        .then(() => {
-            document.getElementById("chatList").innerHTML = "";
-            document.getElementById("result").innerHTML = "";
-            alert("Все сообщения удалены.");
-        })
-        .catch(error => {
-            alert("Ошибка при удалении: " + error.message);
-        });
+    // Обновляем заголовок чата
+    document.getElementById('currentChatHeader').innerHTML = `
+        <h3>Чат с ${userInfo.fullName}</h3>
+        <span>@${userInfo.username}</span>
+    `;
+    
+    // Загружаем сообщения
+    loadChatMessages(userId);
+    
+    // Помечаем активный чат
+    document.querySelectorAll('#chatList li').forEach(li => {
+        li.classList.remove('active');
+    });
+    document.querySelector(`#chatList li[data-user-id="${userId}"]`).classList.add('active');
 }
 
-// Инициализация чата
-showChats(currentUser);
-
-// Фокус на поле сообщения
-document.getElementById("message").focus();
-
-// Обработка Enter в поле сообщения
-document.getElementById("message").addEventListener("keypress", function(e) {
-    if (e.key === "Enter" && e.shiftKey) {
-        // Shift+Enter - новая строка
+async function loadChatMessages(userId) {
+    const messagesContainer = document.getElementById('chatMessages');
+    messagesContainer.innerHTML = '';
+    
+    const snapshot = await db.ref('messages')
+        .orderByChild('chatId')
+        .equalTo(getChatId(currentUser.uid, userId))
+        .once('value');
+    
+    const messages = [];
+    snapshot.forEach(child => {
+        messages.push({ id: child.key, ...child.val() });
+    });
+    
+    // Сортируем по времени (от старых к новым)
+    messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    if (messages.length === 0) {
+        messagesContainer.innerHTML = `
+            <div class="empty-chat">
+                <div class="empty-icon">💬</div>
+                <p>Диалог пуст. Начните общение!</p>
+            </div>
+        `;
         return;
     }
     
-    if (e.key === "Enter") {
-        e.preventDefault();
-        encryptMessage();
-    }
-});
+    messages.forEach(msg => {
+        const isSent = msg.senderId === currentUser.uid;
+        const date = new Date(msg.timestamp);
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        const messageEl = document.createElement('div');
+        messageEl.classList.add('message', isSent ? 'message-sent' : 'message-received');
+        messageEl.innerHTML = `
+            <div class="message-sender">${isSent ? 'Вы' : msg.senderName}</div>
+            <div class="message-text">${msg.text}</div>
+            <div class="message-time">${timeStr}</div>
+        `;
+        
+        messagesContainer.appendChild(messageEl);
+    });
+    
+    // Прокрутка вниз
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
 
-// Обработка Enter в поле поиска
-document.getElementById("searchInput").addEventListener("keypress", function(e) {
-    if (e.key === "Enter") {
-        searchMessages();
+function getChatId(uid1, uid2) {
+    return [uid1, uid2].sort().join('_');
+}
+
+async function sendMessage() {
+    if (!currentChat) {
+        alert("Выберите диалог для отправки сообщения");
+        return;
     }
-});
+    
+    const messageText = document.getElementById('chatMessageInput').value.trim();
+    if (!messageText) return;
+    
+    try {
+        // Получаем информацию о получателе
+        const recipientInfo = await getUserInfo(currentChat);
+        
+        // Создаём объект сообщения
+        const message = {
+            chatId: getChatId(currentUser.uid, currentChat),
+            senderId: currentUser.uid,
+            senderName: currentUser.displayName,
+            recipientId: currentChat,
+            recipientName: recipientInfo.fullName,
+            text: messageText,
+            timestamp: new Date().toISOString(),
+            encrypted: false
+        };
+        
+        // Сохраняем сообщение
+        const newMessageRef = db.ref('messages').push();
+        await newMessageRef.set(message);
+        
+        // Обновляем последнее сообщение в чате
+        await updateLastMessage(currentUser.uid, currentChat, messageText);
+        await updateLastMessage(currentChat, currentUser.uid, messageText);
+        
+        // Очищаем поле ввода
+        document.getElementById('chatMessageInput').value = "";
+        
+        // Перезагружаем сообщения
+        loadChatMessages(currentChat);
+    } catch (error) {
+        console.error("Ошибка отправки сообщения:", error);
+        alert("Не удалось отправить сообщение");
+    }
+}
+
+async function updateLastMessage(userId, partnerId, message) {
+    const chatRef = db.ref(`userChats/${userId}/${getChatId(userId, partnerId)}`);
+    await chatRef.set({
+        userId: partnerId,
+        lastMessage: message,
+        lastUpdated: new Date().toISOString()
+    });
+}
+
+function listenForNewMessages() {
+    db.ref('messages').orderByChild('timestamp').on('child_added', snapshot => {
+        const message = snapshot.val();
+        
+        // Если сообщение адресовано текущему пользователю
+        if (message.recipientId === currentUser.uid) {
+            // Если открыт чат с отправителем
+            if (currentChat === message.senderId) {
+                // Добавляем сообщение в чат
+                const messagesContainer = document.getElementById('chatMessages');
+                
+                const isSent = message.senderId === currentUser.uid;
+                const date = new Date(message.timestamp);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const messageEl = document.createElement('div');
+                messageEl.classList.add('message', isSent ? 'message-sent' : 'message-received');
+                messageEl.innerHTML = `
+                    <div class="message-sender">${isSent ? 'Вы' : message.senderName}</div>
+                    <div class="message-text">${message.text}</div>
+                    <div class="message-time">${timeStr}</div>
+                `;
+                
+                messagesContainer.appendChild(messageEl);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            // Обновляем список чатов
+            loadUserChats();
+        }
+    });
+}
+
+// Контакты
+async function loadContacts() {
+    const contactList = document.getElementById('contactList');
+    contactList.innerHTML = '';
+    
+    // Загружаем всех пользователей
+    const snapshot = await db.ref('users').once('value');
+    const users = snapshot.val() || {};
+    
+    for (const uid in users) {
+        if (uid !== currentUser.uid) {
+            const user = users[uid];
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="contact-info">
+                    <strong>${user.fullName}</strong>
+                    <span>@${user.username}</span>
+                </div>
+                <div class="contact-actions">
+                    <button class="contact-btn btn-chat" data-uid="${uid}">Чат</button>
+                </div>
+            `;
+            
+            contactList.appendChild(li);
+        }
+    }
+    
+    // Обработчики для кнопок чата
+    document.querySelectorAll('.btn-chat').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const partnerId = btn.dataset.uid;
+            const userInfo = await getUserInfo(partnerId);
+            openChat(partnerId, userInfo);
+            showSection('chatSection');
+        });
+    });
+}
+
+async function searchUsers() {
+    const query = document.getElementById('contactSearch').value.trim().toLowerCase();
+    if (!query) return;
+    
+    const chatList = document.getElementById('chatList');
+    chatList.innerHTML = '';
+    
+    // Поиск по пользователям
+    const snapshot = await db.ref('users').once('value');
+    const users = snapshot.val() || {};
+    
+    let found = false;
+    
+    for (const uid in users) {
+        if (uid !== currentUser.uid) {
+            const user = users[uid];
+            
+            if (user.fullName.toLowerCase().includes(query) || 
+                user.username.toLowerCase().includes(query)) {
+                
+                found = true;
+                const li = document.createElement('li');
+                li.dataset.userId = uid;
+                li.innerHTML = `
+                    <div class="chat-info">
+                        <strong>${user.fullName}</strong>
+                        <span>@${user.username}</span>
+                    </div>
+                `;
+                
+                li.addEventListener('click', () => openChat(uid, user));
+                chatList.appendChild(li);
+            }
+        }
+    }
+    
+    if (!found) {
+        chatList.innerHTML = '<li class="empty">Пользователи не найдены</li>';
+    }
+}
+
+async function searchAllUsers() {
+    const query = document.getElementById('userSearch').value.trim().toLowerCase();
+    if (!query) return;
+    
+    const contactList = document.getElementById('contactList');
+    contactList.innerHTML = '';
+    
+    // Поиск по всем пользователям
+    const snapshot = await db.ref('users').once('value');
+    const users = snapshot.val() || {};
+    
+    let found = false;
+    
+    for (const uid in users) {
+        if (uid !== currentUser.uid) {
+            const user = users[uid];
+            
+            if (user.fullName.toLowerCase().includes(query) || 
+                user.username.toLowerCase().includes(query)) {
+                
+                found = true;
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <div class="contact-info">
+                        <strong>${user.fullName}</strong>
+                        <span>@${user.username}</span>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="contact-btn btn-chat" data-uid="${uid}">Чат</button>
+                    </div>
+                `;
+                
+                contactList.appendChild(li);
+            }
+        }
+    }
+    
+    // Добавляем обработчики для новых кнопок
+    document.querySelectorAll('.btn-chat').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const partnerId = btn.dataset.uid;
+            const userInfo = await getUserInfo(partnerId);
+            openChat(partnerId, userInfo);
+            showSection('chatSection');
+        });
+    });
+    
+    if (!found) {
+        contactList.innerHTML = '<li class="empty">Пользователи не найдены</li>';
+    }
+}
+
+// Дополнительные функции
+function exportMessages() {
+    alert("Функция экспорта будет реализована в следующей версии");
+}
+
+async function encryptSelected() {
+    const message = document.getElementById('chatMessageInput').value.trim();
+    if (!message) return;
+    
+    if (!currentChat) {
+        alert("Выберите диалог для шифрования сообщения");
+        return;
+    }
+    
+    try {
+        const seed = Date.now().toString();
+        const key = await generateKey(seed);
+        const encrypted = encrypt(message, key);
+        
+        document.getElementById('chatMessageInput').value = `${CIPHER_VERSION}:${encrypted}|${key}|${seed}`;
+    } catch (err) {
+        alert("Ошибка шифрования: " + err.message);
+        console.error(err);
+    }
+}
