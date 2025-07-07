@@ -6,7 +6,7 @@ const SIGN_ALG = { name: "ECDSA", hash: "SHA-512" };
 const KEY_DERIVATION_ALG = { name: "HKDF", hash: "SHA-512" };
 
 // Генерация ключевой пары пользователя
-export async function generateUserKeys() {
+async function generateUserKeys() {
     const [encryptionKey, signingKey] = await Promise.all([
         crypto.subtle.generateKey(ECDH_ALG, true, ["deriveKey"]),
         crypto.subtle.generateKey(SIGN_ALG, true, ["sign", "verify"])
@@ -19,13 +19,13 @@ export async function generateUserKeys() {
 }
 
 // Экспорт публичного ключа
-export async function exportPublicKey(key) {
+async function exportPublicKey(key) {
     const exported = await crypto.subtle.exportKey("spki", key);
     return arrayBufferToBase64(exported);
 }
 
 // Импорт публичного ключа
-export async function importPublicKey(base64Key, type = "spki", algorithm = ECDH_ALG) {
+async function importPublicKey(base64Key, type = "spki", algorithm = ECDH_ALG) {
     const keyData = base64ToArrayBuffer(base64Key);
     return crypto.subtle.importKey(
         type,
@@ -36,8 +36,20 @@ export async function importPublicKey(base64Key, type = "spki", algorithm = ECDH
     );
 }
 
+// Импорт ключа подписи
+async function importSigningKey(base64Key) {
+    const keyData = base64ToArrayBuffer(base64Key);
+    return crypto.subtle.importKey(
+        "spki",
+        keyData,
+        SIGN_ALG,
+        true,
+        ["verify"]
+    );
+}
+
 // Установка защищенной сессии
-export async function establishSecureSession(myPrivateKey, theirPublicKey) {
+async function establishSecureSession(myPrivateKey, theirPublicKey) {
     const baseKey = await crypto.subtle.deriveKey(
         { name: "ECDH", public: theirPublicKey },
         myPrivateKey,
@@ -56,7 +68,7 @@ export async function establishSecureSession(myPrivateKey, theirPublicKey) {
 }
 
 // Шифрование сообщения
-export async function encryptMessage(sessionKey, message, signingKey) {
+async function encryptMessage(sessionKey, message, signingKey) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encoder = new TextEncoder();
     const encodedMsg = encoder.encode(message);
@@ -82,7 +94,7 @@ export async function encryptMessage(sessionKey, message, signingKey) {
 }
 
 // Дешифровка сообщения
-export async function decryptMessage(sessionKey, base64Packet, publicKey) {
+async function decryptMessage(sessionKey, base64Packet, publicKey) {
     const packet = base64ToArrayBuffer(base64Packet);
     const version = new TextDecoder().decode(packet.slice(0, CRYPTO_VERSION.length));
     if (version !== CRYPTO_VERSION) throw new Error("Unsupported protocol version");
@@ -123,24 +135,25 @@ function base64ToArrayBuffer(base64) {
 }
 
 // Безопасное хранилище ключей
-export const keyStorage = {
+const keyStorage = {
     save: async (keys, userId) => {
         const vault = {
-            encryptionPrivate: await crypto.subtle.exportKey("pkcs8", keys.encryptionKeyPair.privateKey),
-            signingPrivate: await crypto.subtle.exportKey("pkcs8", keys.signingKeyPair.privateKey)
+            encryptionPrivate: arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keys.encryptionKeyPair.privateKey)),
+            signingPrivate: arrayBufferToBase64(await crypto.subtle.exportKey("pkcs8", keys.signingKeyPair.privateKey))
         };
         localStorage.setItem(`cryptoVault_${userId}`, JSON.stringify(vault));
     },
     
     load: async (userId) => {
-        const vault = JSON.parse(localStorage.getItem(`cryptoVault_${userId}`));
-        if (!vault) return null;
+        const vaultStr = localStorage.getItem(`cryptoVault_${userId}`);
+        if (!vaultStr) return null;
+        const vault = JSON.parse(vaultStr);
         
         return {
             encryptionKeyPair: {
                 privateKey: await crypto.subtle.importKey(
                     "pkcs8",
-                    vault.encryptionPrivate,
+                    base64ToArrayBuffer(vault.encryptionPrivate),
                     ECDH_ALG,
                     true,
                     ["deriveKey"]
@@ -149,7 +162,7 @@ export const keyStorage = {
             signingKeyPair: {
                 privateKey: await crypto.subtle.importKey(
                     "pkcs8",
-                    vault.signingPrivate,
+                    base64ToArrayBuffer(vault.signingPrivate),
                     SIGN_ALG,
                     true,
                     ["sign"]
@@ -157,4 +170,16 @@ export const keyStorage = {
             }
         };
     }
+};
+
+// Экспорт функций
+export { 
+    generateUserKeys, 
+    exportPublicKey, 
+    importPublicKey,
+    importSigningKey,
+    establishSecureSession, 
+    encryptMessage, 
+    decryptMessage,
+    keyStorage
 };
