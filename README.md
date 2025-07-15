@@ -69,5 +69,6 @@ Stvor project by Ilyas Zh.
 
 ---
 
-## 📂 Структура проекта
-
+© 2025 Ilyas Zh. All rights reserved.  
+This software and encryption algorithm is licensed under the Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0) License.  
+Commercial use, redistribution, or modification are prohibited without explicit permission from the creator.
