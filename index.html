@@ -31,8 +31,8 @@
                             <input type="password" id="loginPassword" placeholder="Ваш пароль" class="academic-input">
                         </div>
                         <div class="button-group">
-                            <button class="btn-academic" onclick="login()">Войти</button>
-                            <button class="btn-academic-secondary" onclick="showRegisterForm()">Регистрация</button>
+                            <button id="loginBtn" class="btn-academic">Войти</button>
+                            <button id="showRegisterFormBtn" class="btn-academic-secondary">Регистрация</button>
                         </div>
                     </div>
                     
@@ -51,8 +51,8 @@
                             <input type="text" id="regFullName" placeholder="Ваше полное имя" class="academic-input">
                         </div>
                         <div class="button-group">
-                            <button class="btn-academic" onclick="register()">Зарегистрироваться</button>
-                            <button class="btn-academic-secondary" onclick="showLoginForm()">Назад</button>
+                            <button id="registerBtn" class="btn-academic">Зарегистрироваться</button>
+                            <button id="showLoginFormBtn" class="btn-academic-secondary">Назад</button>
                         </div>
                     </div>
                 </div>
@@ -63,7 +63,7 @@
             </div>
         </div>
         
-        <!-- Основной интерфейс (показывается после входа) -->
+        <!-- Основной интерфейс -->
         <div id="mainApp" style="display:none;">
             <header class="academic-header">
                 <div class="header-content">
@@ -99,6 +99,7 @@
                     <div class="chat-main">
                         <div class="chat-header" id="currentChatHeader">
                             <h3>Выберите диалог</h3>
+                            <div id="securityIndicator" style="display:none;"></div>
                         </div>
                         <div class="chat-messages" id="chatMessages">
                             <div class="empty-chat">
@@ -172,4 +173,4 @@
     <script type="module" src="stvor.js"></script>
     <script src="security.js"></script>
 </body>
-</html>    
+</html>
