@@ -1,14 +1,7 @@
-// stvor.js - Основная логика приложения
 import { 
     generateUserKeys, 
-    exportPublicKey, 
-    importPublicKey,
-    importSigningKey,
-    establishSecureSession, 
-    encryptMessage, 
-    decryptMessage,
-    keyStorage,
-    getKeyFingerprint
+    exportPublicKey,
+    keyStorage
 } from './security.js';
 
 // Конфигурация Firebase
@@ -33,7 +26,6 @@ let currentUser = null;
 let currentChat = null;
 let usersCache = {};
 let userKeys = null;
-const sessionKeyCache = new Map();
 
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', () => {
@@ -60,7 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayName: user.displayName || user.email
             };
             
-            // Сохраняем в localStorage
             localStorage.setItem('currentUser', JSON.stringify({
                 uid: currentUser.uid,
                 email: currentUser.email,
@@ -77,23 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('currentUserDisplay').textContent = currentUser.displayName;
                 
                 // Загружаем данные
-                await Promise.all([loadUserChats(), loadContacts()]);
+                await loadUserChats();
+                await loadContacts();
                 
-                // Слушаем новые сообщения
-                listenForSecureMessages();
             } catch (error) {
                 console.error("Ошибка инициализации:", error);
-                alert("Ошибка загрузки приложения. Попробуйте перезагрузить страницу.");
+                alert("Ошибка загрузки приложения: " + error.message);
                 logout();
             }
         } else {
-            // Показываем экран приветствия
             document.getElementById('welcomeScreen').style.display = 'flex';
             document.getElementById('mainApp').style.display = 'none';
-            currentUser = null;
-            currentChat = null;
-            userKeys = null;
-            sessionKeyCache.clear();
         }
     });
     
@@ -102,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedUser) {
         try {
             const userData = JSON.parse(savedUser);
-            firebase.auth().signInWithEmailAndPassword(userData.email, userData.password || "")
+            auth.signInWithEmailAndPassword(userData.email, userData.password || "")
                 .catch(console.error);
         } catch (e) {
             localStorage.removeItem('currentUser');
@@ -124,7 +109,7 @@ async function loadOrGenerateKeys() {
         return keys;
     } catch (error) {
         console.error("Key management error:", error);
-        throw new Error("Не удалось загрузить или сгенерировать ключи");
+        throw new Error("Не удалось загрузить ключи: " + error.message);
     }
 }
 
@@ -132,15 +117,12 @@ async function publishPublicKeys(keys) {
     try {
         const publicKeys = {
             encryption: await exportPublicKey(keys.encryptionKeyPair.publicKey),
-            signing: await exportPublicKey(keys.signingKeyPair.publicKey),
-            fingerprint: await getKeyFingerprint(keys.encryptionKeyPair.publicKey)
         };
         
         await db.ref(`publicKeys/${currentUser.uid}`).set(publicKeys);
-        console.log("Public keys published");
     } catch (error) {
         console.error("Failed to publish keys:", error);
-        throw error;
+        throw new Error("Ошибка публикации ключей");
     }
 }
 
@@ -148,13 +130,11 @@ async function publishPublicKeys(keys) {
 function showRegisterForm() {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'block';
-    document.getElementById('regUsername').focus();
 }
 
 function showLoginForm() {
     document.getElementById('registerForm').style.display = 'none';
     document.getElementById('loginForm').style.display = 'block';
-    document.getElementById('loginUsername').focus();
 }
 
 function login() {
@@ -169,7 +149,7 @@ function login() {
     auth.signInWithEmailAndPassword(email, password)
         .catch(error => {
             console.error("Ошибка входа:", error);
-            alert("Неверный логин или пароль");
+            alert("Неверный логин или пароль: " + error.message);
         });
 }
 
@@ -206,10 +186,15 @@ async function register() {
             createdAt: new Date().toISOString()
         });
         
-        // Генерация и сохранение ключей
-        userKeys = await generateUserKeys();
-        await keyStorage.save(userKeys, userCredential.user.uid);
-        await publishPublicKeys(userKeys);
+        // Упрощенная инициализация ключей
+        try {
+            userKeys = await generateUserKeys();
+            await keyStorage.save(userKeys, userCredential.user.uid);
+            await publishPublicKeys(userKeys);
+        } catch (keyError) {
+            console.error("Ошибка ключей при регистрации:", keyError);
+            // Продолжаем без ключей
+        }
         
         localStorage.setItem('currentUser', JSON.stringify({
             uid: userCredential.user.uid,
@@ -231,7 +216,6 @@ function logout() {
             currentUser = null;
             currentChat = null;
             userKeys = null;
-            sessionKeyCache.clear();
         })
         .catch(console.error);
 }
