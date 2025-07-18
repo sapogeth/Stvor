@@ -1,14 +1,7 @@
-// stvor.js - Основная логика приложения
 import { 
-    generateUserKeys, 
-    exportPublicKey, 
-    importPublicKey,
-    importSigningKey,
-    establishSecureSession, 
-    encryptMessage, 
-    decryptMessage,
-    keyStorage,
-    getKeyFingerprint
+    generateUserKeys as generateCryptoKeys, 
+    keyStorage as cryptoKeyStorage,
+    exportPublicKey
 } from './security.js';
 
 // Конфигурация Firebase
@@ -40,76 +33,86 @@ function showLoginForm() {
     document.getElementById('loginUsername').focus();
 }
 
-// ========== ШИФРОВАЛЬНЫЕ ФУНКЦИИ ==========
 
-function generateUserKeys() {
-    const now = Date.now().toString();
-    const base = btoa(now + Math.random().toString()).slice(0, 32);
-
-    const publicKey = base;
-    const privateKey = base.split("").reverse().join("");
-
-    return { publicKey, privateKey };
-}
-
-const keyStorage = {
-    save: async (keys, userId) => {
-        try {
-            localStorage.setItem("cryptoVault_" + userId, JSON.stringify(keys));
-            return true;
-        } catch (e) {
-            console.error("Ошибка сохранения ключей:", e);
-            return false;
-        }
-    },
-    load: async (userId) => {
-        try {
-            const keys = localStorage.getItem("cryptoVault_" + userId);
-            if (!keys) return false;
-
-            const parsed = JSON.parse(keys);
-            window.userCrypto = parsed;
-            return true;
-        } catch (e) {
-            console.error("Ошибка загрузки ключей:", e);
-            return false;
-        }
-    }
-};
 
 // ========== РЕГИСТРАЦИЯ ==========
 
 async function register() {
+    // Получаем значения полей
     const username = document.getElementById('regUsername').value.trim();
     const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+    const fullName = document.getElementById('regFullName').value.trim();
 
-    if (!username || !password) {
-        alert("Заполните все поля");
+    // Проверяем заполненность полей
+    if (!username || !password || !confirmPassword || !fullName) {
+        alert("Пожалуйста, заполните все поля");
         return;
     }
 
-    const email = username + "@academic-chat.ru";
+    // Проверяем совпадение паролей
+    if (password !== confirmPassword) {
+        alert("Пароли не совпадают!");
+        return;
+    }
+
+    // Проверяем сложность пароля
+    if (!validatePassword(password)) {
+        alert("Пароль должен содержать минимум 8 символов, включая буквы и цифры");
+        return;
+    }
+
+    const email = `${username}@academic-chat.ru`;
 
     try {
+        // Создаем пользователя в Firebase Auth
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const userId = userCredential.user.uid;
-
-        const keys = generateUserKeys();
-        const success = await keyStorage.save(keys, userId);
-
-        if (!success) {
-            alert("Ваша учетная запись создана, но возникла проблема с криптографическими ключами.");
-        } else {
-            alert("Регистрация успешна!");
-            location.reload();
-        }
+        
+        // Генерируем криптографические ключи
+        const keys = await generateCryptoKeys();
+        
+        // Сохраняем ключи в локальное хранилище
+        await cryptoKeyStorage.save(keys, userId);
+        
+        // Экспортируем публичный ключ для обмена
+        const publicKey = await exportPublicKey(keys.encryptionKeyPair.publicKey);
+        
+        // Сохраняем информацию о пользователе в базу данных Firebase
+        await db.ref('users/' + userId).set({
+            username,
+            fullName,
+            publicKey,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        
+        alert("Регистрация успешна! Теперь вы можете войти в систему.");
+        showLoginForm();
     } catch (error) {
         console.error("Ошибка регистрации:", error);
-        alert("Ошибка регистрации: " + error.message);
+        
+        // Пользовательские сообщения об ошибках
+        let errorMessage = "Ошибка регистрации";
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = "Пользователь с таким именем уже существует";
+        } else if (error.code === 'auth/weak-password') {
+            errorMessage = "Пароль слишком слабый";
+        }
+        
+        alert(`${errorMessage}: ${error.message}`);
     }
 }
 
-// ========== ВХОД ==========
+// Функция валидации пароля
+function validatePassword(password) {
+    const minLength = 8;
+    const hasLetter = /[a-zA-Zа-яА-Я]/.test(password);
+    const hasNumber = /\d/.test(password);
+    
+    return password.length >= minLength && hasLetter && hasNumber;
+}
+
+
 
 function login() {
     const email = document.getElementById('loginUsername').value.trim() + "@academic-chat.ru";
