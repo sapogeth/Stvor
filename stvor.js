@@ -1,7 +1,8 @@
 import { 
     generateUserKeys, 
-    exportPublicKey,
-    keyStorage
+    exportPublicKey, 
+    keyStorage,
+    logCryptoOperation
 } from './security.js';
 
 // Конфигурация Firebase
@@ -17,7 +18,14 @@ const firebaseConfig = {
 };
 
 // Инициализация Firebase
-firebase.initializeApp(firebaseConfig);
+try {
+    firebase.initializeApp(firebaseConfig);
+    console.log("Firebase успешно инициализирован");
+} catch (error) {
+    console.error("Ошибка инициализации Firebase:", error);
+    alert("Критическая ошибка: Не удалось подключиться к серверу");
+}
+
 const db = firebase.database();
 const auth = firebase.auth();
 
@@ -29,6 +37,8 @@ let userKeys = null;
 
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', () => {
+    console.log("Приложение инициализировано");
+    
     // Привязка обработчиков кнопок
     document.getElementById('showRegisterFormBtn').addEventListener('click', showRegisterForm);
     document.getElementById('showLoginFormBtn').addEventListener('click', showLoginForm);
@@ -46,19 +56,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Проверка авторизации
     auth.onAuthStateChanged(async user => {
         if (user) {
+            console.log("Пользователь аутентифицирован:", user.uid);
             currentUser = {
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName || user.email
             };
             
-            localStorage.setItem('currentUser', JSON.stringify({
-                uid: currentUser.uid,
-                email: currentUser.email,
-                displayName: currentUser.displayName
-            }));
-            
             try {
+                // Сохраняем в localStorage
+                localStorage.setItem('currentUser', JSON.stringify({
+                    uid: currentUser.uid,
+                    email: currentUser.email,
+                    displayName: currentUser.displayName
+                }));
+                
                 // Загрузка или генерация ключей
                 userKeys = await loadOrGenerateKeys();
                 
@@ -68,17 +80,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('currentUserDisplay').textContent = currentUser.displayName;
                 
                 // Загружаем данные
-                await loadUserChats();
-                await loadContacts();
+                await Promise.all([loadUserChats(), loadContacts()]);
                 
+                console.log("Приложение успешно загружено");
             } catch (error) {
-                console.error("Ошибка инициализации:", error);
-                alert("Ошибка загрузки приложения: " + error.message);
-                logout();
+                console.error("Ошибка загрузки приложения:", error);
+                showErrorScreen(`Ошибка загрузки: ${error.message}`);
             }
         } else {
+            console.log("Пользователь не аутентифицирован");
             document.getElementById('welcomeScreen').style.display = 'flex';
             document.getElementById('mainApp').style.display = 'none';
+            currentUser = null;
+            currentChat = null;
+            userKeys = null;
         }
     });
     
@@ -88,7 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const userData = JSON.parse(savedUser);
             auth.signInWithEmailAndPassword(userData.email, userData.password || "")
-                .catch(console.error);
+                .catch(error => {
+                    console.error("Ошибка автоматического входа:", error);
+                    localStorage.removeItem('currentUser');
+                });
         } catch (e) {
             localStorage.removeItem('currentUser');
         }
@@ -98,31 +116,38 @@ document.addEventListener('DOMContentLoaded', () => {
 // Управление ключами
 async function loadOrGenerateKeys() {
     try {
+        console.log("Загрузка ключей для пользователя:", currentUser.uid);
         let keys = await keyStorage.load(currentUser.uid);
         
         if (!keys) {
+            console.log("Ключи не найдены, генерация новых...");
             keys = await generateUserKeys();
             await keyStorage.save(keys, currentUser.uid);
             await publishPublicKeys(keys);
+            console.log("Новые ключи сгенерированы и сохранены");
+        } else {
+            console.log("Ключи успешно загружены из хранилища");
         }
         
         return keys;
     } catch (error) {
-        console.error("Key management error:", error);
-        throw new Error("Не удалось загрузить ключи: " + error.message);
+        console.error("Ошибка управления ключами:", error);
+        throw new Error("Не удалось загрузить ключи безопасности");
     }
 }
 
 async function publishPublicKeys(keys) {
     try {
+        console.log("Публикация ключей для пользователя:", currentUser.uid);
         const publicKeys = {
             encryption: await exportPublicKey(keys.encryptionKeyPair.publicKey),
         };
         
         await db.ref(`publicKeys/${currentUser.uid}`).set(publicKeys);
+        console.log("Публичные ключи успешно опубликованы");
     } catch (error) {
-        console.error("Failed to publish keys:", error);
-        throw new Error("Ошибка публикации ключей");
+        console.error("Ошибка публикации ключей:", error);
+        throw new Error("Не удалось опубликовать ключи");
     }
 }
 
@@ -149,7 +174,7 @@ function login() {
     auth.signInWithEmailAndPassword(email, password)
         .catch(error => {
             console.error("Ошибка входа:", error);
-            alert("Неверный логин или пароль: " + error.message);
+            alert(`Ошибка входа: ${error.message}`);
         });
 }
 
@@ -177,6 +202,7 @@ async function register() {
     const email = username + "@academic-chat.ru";
     
     try {
+        console.log("Регистрация нового пользователя:", username);
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         await userCredential.user.updateProfile({ displayName: fullName });
         
@@ -186,14 +212,16 @@ async function register() {
             createdAt: new Date().toISOString()
         });
         
-        // Упрощенная инициализация ключей
+        console.log("Пользователь создан, генерация ключей...");
         try {
             userKeys = await generateUserKeys();
             await keyStorage.save(userKeys, userCredential.user.uid);
             await publishPublicKeys(userKeys);
+            console.log("Ключи успешно сгенерированы");
         } catch (keyError) {
-            console.error("Ошибка ключей при регистрации:", keyError);
-            // Продолжаем без ключей
+            console.error("Ошибка генерации ключей при регистрации:", keyError);
+            // Продолжаем регистрацию без ключей
+            alert("Регистрация завершена, но возникли проблемы с криптографическими ключами. Обратитесь в поддержку.");
         }
         
         localStorage.setItem('currentUser', JSON.stringify({
@@ -202,10 +230,11 @@ async function register() {
             displayName: fullName
         }));
         
-        alert("Регистрация прошла успешно!");
+        alert("Регистрация прошла успешно! Теперь вы можете войти.");
+        showLoginForm();
     } catch (error) {
         console.error("Ошибка регистрации:", error);
-        alert("Ошибка регистрации: " + error.message);
+        alert(`Ошибка регистрации: ${error.message}`);
     }
 }
 
@@ -217,7 +246,24 @@ function logout() {
             currentChat = null;
             userKeys = null;
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error("Ошибка выхода:", error);
+        });
+}
+
+// Показать экран ошибки
+function showErrorScreen(message) {
+    const errorHTML = `
+        <div class="error-screen">
+            <h2>Критическая ошибка</h2>
+            <p>${message}</p>
+            <p>Попробуйте перезагрузить страницу или обратиться в поддержку.</p>
+            <button onclick="location.reload()">Перезагрузить</button>
+            <button onclick="logout()">Выйти</button>
+        </div>
+    `;
+    
+    document.getElementById('mainApp').innerHTML = errorHTML;
 }
 
 // Навигация
