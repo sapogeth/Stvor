@@ -10,6 +10,88 @@ const SIGN_ALG = {
     namedCurve: "P-256"
 };
 
+function ilyazhEncrypt(plaintext) {
+    return plaintext
+        .split('')
+        .map(char => String.fromCharCode(char.charCodeAt(0) + 3))
+        .join('');
+}
+
+function ilyazhDecrypt(ciphertext) {
+    return ciphertext
+        .split('')
+        .map(char => String.fromCharCode(char.charCodeAt(0) - 3))
+        .join('');
+}
+
+async function encryptMessageHybrid(sessionKey, message, signingKey) {
+    try {
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+
+        // 1. Внутреннее шифрование (Ilyazh)
+        const ilyazhEncrypted = ilyazhEncrypt(message);
+
+        // 2. Шифрование AES-GCM
+        const encoded = new TextEncoder().encode(ilyazhEncrypted);
+        const ciphertext = await crypto.subtle.encrypt(
+            { ...AES_ALG, iv },
+            sessionKey,
+            encoded
+        );
+
+        // 3. Подпись ECDSA
+        const signature = await crypto.subtle.sign(
+            SIGN_ALG,
+            signingKey,
+            ciphertext
+        );
+
+        // Формат пакета: IV (12B) + Подпись (64B) + Шифртекст
+        return arrayBufferToBase64(new Uint8Array([
+            ...iv,
+            ...new Uint8Array(signature),
+            ...new Uint8Array(ciphertext)
+        ]));
+    } catch (error) {
+        console.error("Ошибка гибридного шифрования:", error);
+        throw new Error("Hybrid encryption failed");
+    }
+}
+
+// Гибридное дешифрование
+async function decryptMessageHybrid(sessionKey, base64Packet, publicKey) {
+    try {
+        const packet = base64ToArrayBuffer(base64Packet);
+        const iv = packet.slice(0, 12);
+        const signature = packet.slice(12, 12 + 64); // 64-байтовая подпись ECDSA
+        const ciphertext = packet.slice(12 + 64);
+
+        // 1. Проверка подписи
+        const valid = await crypto.subtle.verify(
+            SIGN_ALG,
+            publicKey,
+            signature,
+            ciphertext
+        );
+        if (!valid) throw new Error("Подпись недействительна");
+
+        // 2. Дешифровка AES-GCM
+        const decrypted = await crypto.subtle.decrypt(
+            { ...AES_ALG, iv },
+            sessionKey,
+            ciphertext
+        );
+
+        // 3. Дешифровка Ilyazh
+        const ilyazhDecrypted = ilyazhDecrypt(new TextDecoder().decode(decrypted));
+        
+        return ilyazhDecrypted;
+    } catch (error) {
+        console.error("Ошибка гибридной дешифровки:", error);
+        throw new Error("Hybrid decryption failed");
+    }
+}
+
 async function generateUserKeys() {
     try {
         const encryptionKey = await crypto.subtle.generateKey(
@@ -252,8 +334,10 @@ export {
     importPublicKey,
     importSigningKey,
     establishSecureSession,
-    encryptMessage,
-    decryptMessage,
+    encryptMessage,         
+    decryptMessage,         
+    encryptMessageHybrid,    
+    decryptMessageHybrid,    
     keyStorage,
     getKeyFingerprint
 };
