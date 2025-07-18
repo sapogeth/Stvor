@@ -240,7 +240,6 @@ const keyStorage = {
     }
 };
 
-// Вспомогательные функции
 function arrayBufferToBase64(buffer) {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
@@ -254,14 +253,14 @@ function base64ToArrayBuffer(base64) {
     return bytes.buffer;
 }
 
-// Экспорт функций
-function generateUserKeys() { 
-    generateUserKeys, 
-    exportPublicKey, 
+
+export {
+    generateUserKeys,
+    exportPublicKey,
     importPublicKey,
     importSigningKey,
-    establishSecureSession, 
-    encryptMessage, 
+    establishSecureSession,
+    encryptMessage,
     decryptMessage,
     keyStorage,
     getKeyFingerprint
