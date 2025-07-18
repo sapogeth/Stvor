@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Academic Secure Chat</title>
     <link rel="stylesheet" href="stvor.css">
-    <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -13,7 +12,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- Экран приветствия -->
         <div id="welcomeScreen" class="welcome-screen">
             <div class="welcome-card">
                 <div class="academic-header">
@@ -64,7 +62,6 @@
             </div>
         </div>
         
-        <!-- Основной интерфейс -->
         <div id="mainApp" style="display:none;">
             <header class="academic-header">
                 <div class="header-content">
@@ -75,7 +72,7 @@
                             <p class="subtitle">Вы вошли как: <span id="currentUserDisplay"></span></p>
                         </div>
                     </div>
-                    <button class="btn-logout" onclick="logout()">Выйти</button>
+                    <button id="logoutBtn" class="btn-logout">Выйти</button>
                 </div>
                 <nav class="academic-nav">
                     <button class="nav-btn active" data-target="chatSection">Чаты</button>
@@ -84,13 +81,12 @@
                 </nav>
             </header>
             
-            <!-- Секция чатов -->
             <section id="chatSection" class="app-section">
                 <div class="chat-container">
                     <div class="chat-sidebar">
                         <div class="search-container">
                             <input type="text" id="contactSearch" placeholder="Поиск пользователей..." class="academic-input">
-                            <button onclick="searchUsers()" class="btn-search">🔍</button>
+                            <button id="searchUsersBtn" class="btn-search">🔍</button>
                         </div>
                         <div class="chat-list-container">
                             <ul id="chatList"></ul>
@@ -111,15 +107,14 @@
                         <div class="chat-input">
                             <textarea id="chatMessageInput" placeholder="Введите сообщение..." class="academic-textarea"></textarea>
                             <div class="chat-buttons">
-                                <button class="btn-academic" onclick="sendMessage()">Отправить</button>
-                                <button class="btn-academic-secondary" onclick="encryptSelected()">Зашифровать</button>
+                                <button class="btn-academic" id="sendMessageBtn">Отправить</button>
+                                <button class="btn-academic-secondary" id="encryptSelectedBtn">Зашифровать</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
             
-            <!-- Секция шифрования -->
             <section id="encryptSection" class="app-section" style="display:none;">
                 <div class="card academic-card">
                     <h3 class="academic-title">Инструменты шифрования</h3>
@@ -134,15 +129,8 @@
                     </div>
                     
                     <div class="button-group">
-                        <button class="btn-academic" onclick="encryptMessage()">
-                            <span class="icon">🔒</span> Зашифровать
-                        </button>
-                        <button class="btn-academic-secondary" onclick="decryptMessage()">
-                            <span class="icon">🔓</span> Расшифровать
-                        </button>
-                        <button class="btn-export" onclick="exportMessages()">
-                            <span class="icon">💾</span> Экспорт
-                        </button>
+                        <button id="encryptMessageBtn" class="btn-academic">🔒 Зашифровать</button>
+                        <button id="decryptMessageBtn" class="btn-academic-secondary">🔓 Расшифровать</button>
                     </div>
                 </div>
                 
@@ -152,13 +140,12 @@
                 </div>
             </section>
             
-            <!-- Секция контакты -->
             <section id="contactsSection" class="app-section" style="display:none;">
                 <div class="card academic-card">
                     <h3 class="academic-title">Мои контакты</h3>
                     <div class="search-container">
                         <input type="text" id="userSearch" placeholder="Поиск пользователей..." class="academic-input">
-                        <button onclick="searchAllUsers()" class="btn-search">🔍</button>
+                        <button id="searchAllUsersBtn" class="btn-search">🔍</button>
                     </div>
                     <ul id="contactList" class="contact-list"></ul>
                 </div>
@@ -171,7 +158,7 @@
         </div>
     </div>
 
-    <script src="security.js"></script>
-    <script src="stvor.js"></script>
+    <script src="security.js" type="module"></script>
+    <script src="stvor.js" type="module"></script>
 </body>
 </html>
