@@ -1,3 +1,4 @@
+const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?.,:;@#%^&*()-_=+[]{}<>/|\\\'"`~ \n\t'];
 const CRYPTO_VERSION = "ASC-v1";
 const AES_ALG = { name: "AES-GCM", length: 256 };
 const ECDH_ALG = { 
@@ -10,19 +11,73 @@ const SIGN_ALG = {
     namedCurve: "P-256"
 };
 
-function ilyazhEncrypt(plaintext) {
-    return plaintext
-        .split('')
-        .map(char => String.fromCharCode(char.charCodeAt(0) + 3))
-        .join('');
+function getAlphabetIndex(char) {
+    return alphabet.indexOf(char);
 }
 
-function ilyazhDecrypt(ciphertext) {
-    return ciphertext
-        .split('')
-        .map(char => String.fromCharCode(char.charCodeAt(0) - 3))
-        .join('');
+function generateKey(userId, timestamp, salt) {
+    const input = `${userId}-${timestamp}-${salt}`;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+
+    return crypto.subtle.digest("SHA-512", data)
+        .then(hashBuffer => {
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(byte => alphabet[byte % alphabet.length]).join('');
+        });
 }
+
+function ilyazhEncrypt(plaintext, key) {
+    let encrypted = '';
+    for (let i = 0; i < plaintext.length; i++) {
+        const pChar = plaintext[i];
+        const kChar = key[i % key.length];
+
+        const pIndex = getAlphabetIndex(pChar);
+        const kIndex = getAlphabetIndex(kChar);
+
+        if (pIndex === -1 || kIndex === -1) {
+            encrypted += pChar;
+        } else {
+            const eIndex = (pIndex + kIndex) % alphabet.length;
+            let eChar = alphabet[eIndex];
+
+            // Anti-repetition: если символ повторяется с предыдущим, сдвинь ещё
+            if (i > 0 && eChar === encrypted[i - 1]) {
+                eIndex = (eIndex + 1) % alphabet.length;
+                eChar = alphabet[eIndex];
+            }
+
+            encrypted += eChar;
+        }
+    }
+    return encrypted;
+}
+
+function ilyazhDecrypt(ciphertext, key) {
+    let decrypted = '';
+    for (let i = 0; i < ciphertext.length; i++) {
+        let cChar = ciphertext[i];
+        const kChar = key[i % key.length];
+
+        let cIndex = getAlphabetIndex(cChar);
+        const kIndex = getAlphabetIndex(kChar);
+
+        if (cIndex === -1 || kIndex === -1) {
+            decrypted += cChar;
+        } else {
+            // Anti-repetition (на дешифровке) — учёт смещения
+            if (i > 0 && cChar === ciphertext[i - 1]) {
+                cIndex = (cIndex - 1 + alphabet.length) % alphabet.length;
+            }
+
+            const dIndex = (cIndex - kIndex + alphabet.length) % alphabet.length;
+            decrypted += alphabet[dIndex];
+        }
+    }
+    return decrypted;
+}
+
 
 async function encryptMessageHybrid(sessionKey, message, signingKey) {
     try {
