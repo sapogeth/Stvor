@@ -255,7 +255,7 @@ function base64ToArrayBuffer(base64) {
 }
 
 // Экспорт функций
-export { 
+function generateUserKeys() { 
     generateUserKeys, 
     exportPublicKey, 
     importPublicKey,
