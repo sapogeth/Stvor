@@ -1,8 +1,14 @@
+// stvor.js - Основная логика приложения
 import { 
     generateUserKeys, 
     exportPublicKey, 
+    importPublicKey,
+    importSigningKey,
+    establishSecureSession, 
+    encryptMessage, 
+    decryptMessage,
     keyStorage,
-    logCryptoOperation
+    getKeyFingerprint
 } from './security.js';
 
 // Конфигурация Firebase
@@ -18,14 +24,7 @@ const firebaseConfig = {
 };
 
 // Инициализация Firebase
-try {
-    firebase.initializeApp(firebaseConfig);
-    console.log("Firebase успешно инициализирован");
-} catch (error) {
-    console.error("Ошибка инициализации Firebase:", error);
-    alert("Критическая ошибка: Не удалось подключиться к серверу");
-}
-
+firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
@@ -34,11 +33,10 @@ let currentUser = null;
 let currentChat = null;
 let usersCache = {};
 let userKeys = null;
+const sessionKeyCache = new Map();
 
 // Инициализация приложения
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Приложение инициализировано");
-    
     // Привязка обработчиков кнопок
     document.getElementById('showRegisterFormBtn').addEventListener('click', showRegisterForm);
     document.getElementById('showLoginFormBtn').addEventListener('click', showLoginForm);
@@ -56,21 +54,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Проверка авторизации
     auth.onAuthStateChanged(async user => {
         if (user) {
-            console.log("Пользователь аутентифицирован:", user.uid);
             currentUser = {
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName || user.email
             };
             
+            // Сохраняем в localStorage
+            localStorage.setItem('currentUser', JSON.stringify({
+                uid: currentUser.uid,
+                email: currentUser.email,
+                displayName: currentUser.displayName
+            }));
+            
             try {
-                // Сохраняем в localStorage
-                localStorage.setItem('currentUser', JSON.stringify({
-                    uid: currentUser.uid,
-                    email: currentUser.email,
-                    displayName: currentUser.displayName
-                }));
-                
                 // Загрузка или генерация ключей
                 userKeys = await loadOrGenerateKeys();
                 
@@ -80,20 +77,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('currentUserDisplay').textContent = currentUser.displayName;
                 
                 // Загружаем данные
-                await Promise.all([loadUserChats(), loadContacts()]);
+                await loadUserChats();
+                await loadContacts();
                 
-                console.log("Приложение успешно загружено");
+                // Слушаем новые сообщения
+                listenForSecureMessages();
             } catch (error) {
                 console.error("Ошибка загрузки приложения:", error);
                 showErrorScreen(`Ошибка загрузки: ${error.message}`);
             }
         } else {
-            console.log("Пользователь не аутентифицирован");
+            // Показываем экран приветствия
             document.getElementById('welcomeScreen').style.display = 'flex';
             document.getElementById('mainApp').style.display = 'none';
             currentUser = null;
             currentChat = null;
             userKeys = null;
+            sessionKeyCache.clear();
         }
     });
     
@@ -102,11 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedUser) {
         try {
             const userData = JSON.parse(savedUser);
-            auth.signInWithEmailAndPassword(userData.email, userData.password || "")
-                .catch(error => {
-                    console.error("Ошибка автоматического входа:", error);
-                    localStorage.removeItem('currentUser');
-                });
+            firebase.auth().signInWithEmailAndPassword(userData.email, userData.password || "")
+                .catch(console.error);
         } catch (e) {
             localStorage.removeItem('currentUser');
         }
@@ -116,17 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // Управление ключами
 async function loadOrGenerateKeys() {
     try {
-        console.log("Загрузка ключей для пользователя:", currentUser.uid);
         let keys = await keyStorage.load(currentUser.uid);
         
         if (!keys) {
-            console.log("Ключи не найдены, генерация новых...");
             keys = await generateUserKeys();
-            await keyStorage.save(keys, currentUser.uid);
-            await publishPublicKeys(keys);
-            console.log("Новые ключи сгенерированы и сохранены");
-        } else {
-            console.log("Ключи успешно загружены из хранилища");
+            const saveSuccess = await keyStorage.save(keys, currentUser.uid);
+            if (saveSuccess) {
+                await publishPublicKeys(keys);
+            }
         }
         
         return keys;
@@ -138,16 +132,15 @@ async function loadOrGenerateKeys() {
 
 async function publishPublicKeys(keys) {
     try {
-        console.log("Публикация ключей для пользователя:", currentUser.uid);
         const publicKeys = {
             encryption: await exportPublicKey(keys.encryptionKeyPair.publicKey),
+            fingerprint: await getKeyFingerprint(keys.encryptionKeyPair.publicKey)
         };
         
         await db.ref(`publicKeys/${currentUser.uid}`).set(publicKeys);
-        console.log("Публичные ключи успешно опубликованы");
     } catch (error) {
         console.error("Ошибка публикации ключей:", error);
-        throw new Error("Не удалось опубликовать ключи");
+        throw new Error("Ошибка публикации ключей");
     }
 }
 
@@ -155,11 +148,13 @@ async function publishPublicKeys(keys) {
 function showRegisterForm() {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'block';
+    document.getElementById('regUsername').focus();
 }
 
 function showLoginForm() {
     document.getElementById('registerForm').style.display = 'none';
     document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('loginUsername').focus();
 }
 
 function login() {
@@ -174,7 +169,7 @@ function login() {
     auth.signInWithEmailAndPassword(email, password)
         .catch(error => {
             console.error("Ошибка входа:", error);
-            alert(`Ошибка входа: ${error.message}`);
+            alert("Неверный логин или пароль: " + error.message);
         });
 }
 
@@ -202,7 +197,6 @@ async function register() {
     const email = username + "@academic-chat.ru";
     
     try {
-        console.log("Регистрация нового пользователя:", username);
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         await userCredential.user.updateProfile({ displayName: fullName });
         
@@ -212,16 +206,18 @@ async function register() {
             createdAt: new Date().toISOString()
         });
         
-        console.log("Пользователь создан, генерация ключей...");
+        // Генерация и сохранение ключей
         try {
             userKeys = await generateUserKeys();
-            await keyStorage.save(userKeys, userCredential.user.uid);
-            await publishPublicKeys(userKeys);
-            console.log("Ключи успешно сгенерированы");
+            const saveSuccess = await keyStorage.save(userKeys, userCredential.user.uid);
+            if (saveSuccess) {
+                await publishPublicKeys(userKeys);
+            } else {
+                console.error("Не удалось сохранить ключи");
+            }
         } catch (keyError) {
-            console.error("Ошибка генерации ключей при регистрации:", keyError);
-            // Продолжаем регистрацию без ключей
-            alert("Регистрация завершена, но возникли проблемы с криптографическими ключами. Обратитесь в поддержку.");
+            console.error("Ошибка генерации ключей:", keyError);
+            alert("Ваша учетная запись создана, но возникла проблема с криптографическими ключами. Обратитесь в поддержку.");
         }
         
         localStorage.setItem('currentUser', JSON.stringify({
@@ -230,11 +226,11 @@ async function register() {
             displayName: fullName
         }));
         
-        alert("Регистрация прошла успешно! Теперь вы можете войти.");
+        alert("Регистрация прошла успешно! Теперь вы можете войти в систему.");
         showLoginForm();
     } catch (error) {
         console.error("Ошибка регистрации:", error);
-        alert(`Ошибка регистрации: ${error.message}`);
+        alert("Ошибка регистрации: " + error.message);
     }
 }
 
@@ -245,25 +241,11 @@ function logout() {
             currentUser = null;
             currentChat = null;
             userKeys = null;
+            sessionKeyCache.clear();
         })
         .catch(error => {
             console.error("Ошибка выхода:", error);
         });
-}
-
-// Показать экран ошибки
-function showErrorScreen(message) {
-    const errorHTML = `
-        <div class="error-screen">
-            <h2>Критическая ошибка</h2>
-            <p>${message}</p>
-            <p>Попробуйте перезагрузить страницу или обратиться в поддержку.</p>
-            <button onclick="location.reload()">Перезагрузить</button>
-            <button onclick="logout()">Выйти</button>
-        </div>
-    `;
-    
-    document.getElementById('mainApp').innerHTML = errorHTML;
 }
 
 // Навигация
@@ -293,20 +275,14 @@ async function getSessionKey(recipientId) {
         
         const recipientKeys = snapshot.val();
         const encryptionPublicKey = await importPublicKey(recipientKeys.encryption);
-        const signingPublicKey = await importSigningKey(recipientKeys.signing);
         
         const sessionKey = await establishSecureSession(
             userKeys.encryptionKeyPair.privateKey,
             encryptionPublicKey
         );
         
-        sessionKeyCache.set(recipientId, { 
-            key: sessionKey, 
-            publicKey: encryptionPublicKey,
-            fingerprint: recipientKeys.fingerprint
-        });
-        
-        return sessionKeyCache.get(recipientId);
+        sessionKeyCache.set(recipientId, sessionKey);
+        return sessionKey;
     } catch (error) {
         console.error("Ошибка установки сессии:", error);
         throw error;
@@ -315,22 +291,24 @@ async function getSessionKey(recipientId) {
 
 async function sendSecureMessage(recipientId, message) {
     try {
-        const sessionData = await getSessionKey(recipientId);
-        const sessionKey = sessionData.key;
+        const sessionKey = await getSessionKey(recipientId);
         
+        // Шифрование сообщения
         const encryptedPacket = await encryptMessage(
             sessionKey,
             message,
             userKeys.signingKeyPair.privateKey
         );
         
-        const messageRef = await db.ref('messages').push({
+        // Отправка в Firebase
+        await db.ref('messages').push({
             sender: currentUser.uid,
             recipient: recipientId,
             packet: encryptedPacket,
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
         
+        // Обновление последнего сообщения
         await updateLastMessage(currentUser.uid, recipientId, message);
         await updateLastMessage(recipientId, currentUser.uid, message);
         
@@ -343,101 +321,48 @@ async function sendSecureMessage(recipientId, message) {
 }
 
 async function listenForSecureMessages() {
-    db.ref('messages').orderByChild('timestamp').on('child_added', handleNewMessage);
-    
-    if (currentChat) {
-        await loadChatHistory(currentChat);
-    }
-}
-
-async function handleNewMessage(snapshot) {
-    const msg = snapshot.val();
-    if (msg.recipient !== currentUser.uid) return;
-    
-    try {
-        const decrypted = await decryptSecureMessage(msg);
+    db.ref('messages').orderByChild('timestamp').on('child_added', async snapshot => {
+        const msg = snapshot.val();
         
-        if (currentChat === msg.sender) {
-            displayMessage(msg.sender, decrypted, msg.timestamp, false);
-        }
+        if (msg.recipient !== currentUser.uid) return;
         
-        loadUserChats();
-    } catch (error) {
-        console.error("Ошибка обработки сообщения:", error);
-        if (currentChat === msg.sender) {
-            displayMessage(msg.sender, "🔒 Не удалось расшифровать сообщение", Date.now(), false);
-        }
-    }
-}
-
-async function decryptSecureMessage(msg) {
-    const senderKeys = await db.ref(`publicKeys/${msg.sender}`).once('value');
-    if (!senderKeys.exists()) throw new Error("Ключи отправителя не найдены");
-    
-    const senderKeysData = senderKeys.val();
-    const encryptionPublicKey = await importPublicKey(senderKeysData.encryption);
-    const signingPublicKey = await importSigningKey(senderKeysData.signing);
-    
-    const sessionData = await getSessionKey(msg.sender);
-    const sessionKey = sessionData.key;
-    
-    return decryptMessage(
-        sessionKey,
-        msg.packet,
-        signingPublicKey
-    );
-}
-
-async function loadChatHistory(partnerId) {
-    try {
-        const messagesContainer = document.getElementById('chatMessages');
-        messagesContainer.innerHTML = '<div class="loading">Загрузка истории...</div>';
-        
-        const snapshot = await db.ref('messages').once('value');
-        
-        const messages = [];
-        snapshot.forEach(child => {
-            const msg = child.val();
-            if ((msg.sender === currentUser.uid && msg.recipient === partnerId) || 
-                (msg.sender === partnerId && msg.recipient === currentUser.uid)) {
-                messages.push(msg);
+        try {
+            // Загрузка ключей отправителя
+            const senderKeys = await db.ref(`publicKeys/${msg.sender}`).once('value');
+            if (!senderKeys.exists()) throw new Error("Ключи отправителя не найдены");
+            
+            const senderKeysData = senderKeys.val();
+            const signingPublicKey = await importSigningKey(senderKeysData.encryption);
+            
+            // Получение сессионного ключа
+            const sessionKey = await getSessionKey(msg.sender);
+            
+            // Дешифровка сообщения
+            const decrypted = await decryptMessage(
+                sessionKey,
+                msg.packet,
+                signingPublicKey
+            );
+            
+            // Отображение сообщения
+            if (currentChat === msg.sender) {
+                displayMessage(msg.sender, decrypted, msg.timestamp);
             }
-        });
-        
-        messages.sort((a, b) => a.timestamp - b.timestamp);
-        
-        messagesContainer.innerHTML = '';
-        for (const msg of messages) {
-            try {
-                const decrypted = await decryptSecureMessage(msg);
-                displayMessage(
-                    msg.sender, 
-                    decrypted, 
-                    msg.timestamp, 
-                    msg.sender === currentUser.uid
-                );
-            } catch (error) {
-                displayMessage(
-                    msg.sender, 
-                    "🔒 Не удалось расшифровать сообщение", 
-                    msg.timestamp, 
-                    msg.sender === currentUser.uid
-                );
+            
+            // Обновление списка чатов
+            loadUserChats();
+        } catch (error) {
+            console.error("Ошибка дешифровки:", error);
+            if (currentChat === msg.sender) {
+                displayMessage(msg.sender, "🔒 Не удалось расшифровать сообщение", msg.timestamp);
             }
         }
-    } catch (error) {
-        console.error("Ошибка загрузки истории:", error);
-        document.getElementById('chatMessages').innerHTML = 
-            '<div class="error">Ошибка загрузки истории чата</div>';
-    }
+    });
 }
 
-function displayMessage(senderId, text, timestamp, isCurrentUser = null) {
-    if (isCurrentUser === null) {
-        isCurrentUser = senderId === currentUser.uid;
-    }
-    
+function displayMessage(senderId, text, timestamp) {
     const messagesContainer = document.getElementById('chatMessages');
+    const isCurrentUser = senderId === currentUser.uid;
     const userInfo = usersCache[senderId] || { fullName: "Неизвестный" };
     
     const messageEl = document.createElement('div');
@@ -533,9 +458,8 @@ async function openChat(userId, userInfo) {
         
         if (theirKeys.exists()) {
             const theirFingerprint = theirKeys.val().fingerprint;
-            const sessionData = await getSessionKey(userId);
             
-            if (sessionData.fingerprint === theirFingerprint) {
+            if (myFingerprint === theirFingerprint) {
                 securityIndicator.style.display = 'block';
                 securityIndicator.innerHTML = '<span>🔒 Проверенный контакт</span>';
             } else {
@@ -547,11 +471,45 @@ async function openChat(userId, userInfo) {
         securityIndicator.style.display = 'none';
     }
     
-    await loadChatHistory(userId);
-    
     const messagesContainer = document.getElementById('chatMessages');
     messagesContainer.innerHTML = '';
     
+    // Загрузка истории сообщений
+    const snapshot = await db.ref('messages').once('value');
+    const messages = [];
+    snapshot.forEach(child => {
+        const msg = child.val();
+        if ((msg.sender === currentUser.uid && msg.recipient === userId) || 
+            (msg.sender === userId && msg.recipient === currentUser.uid)) {
+            messages.push(msg);
+        }
+    });
+    
+    messages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    for (const msg of messages) {
+        try {
+            const senderKeys = await db.ref(`publicKeys/${msg.sender}`).once('value');
+            if (!senderKeys.exists()) throw new Error("Ключи отправителя не найдены");
+            
+            const senderKeysData = senderKeys.val();
+            const signingPublicKey = await importSigningKey(senderKeysData.encryption);
+            const sessionKey = await getSessionKey(msg.sender);
+            
+            const decrypted = await decryptMessage(
+                sessionKey,
+                msg.packet,
+                signingPublicKey
+            );
+            
+            displayMessage(msg.sender, decrypted, msg.timestamp);
+        } catch (error) {
+            console.error("Ошибка загрузки сообщения:", error);
+            displayMessage(msg.sender, "🔒 Не удалось расшифровать сообщение", msg.timestamp);
+        }
+    }
+    
+    // Помечаем активный чат
     document.querySelectorAll('#chatList li').forEach(li => {
         li.classList.remove('active');
     });
@@ -650,6 +608,20 @@ async function searchUsers() {
     if (!found) {
         chatList.innerHTML = '<li class="empty">Пользователи не найдены</li>';
     }
+}
+
+// Показать экран ошибки
+function showErrorScreen(message) {
+    const mainApp = document.getElementById('mainApp');
+    mainApp.innerHTML = `
+        <div class="error-screen">
+            <h2>Критическая ошибка</h2>
+            <p>${message}</p>
+            <p>Попробуйте перезагрузить страницу или обратиться в поддержку.</p>
+            <button onclick="location.reload()">Перезагрузить</button>
+            <button onclick="logout()">Выйти</button>
+        </div>
+    `;
 }
 
 // Дополнительные функции
