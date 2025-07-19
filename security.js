@@ -218,8 +218,13 @@ async function establishSecureSession(myPrivateKey, theirPublicKey) {
         const baseKey = await crypto.subtle.deriveKey(
             { name: "ECDH", public: theirPublicKey },
             myPrivateKey,
-            { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(), info: new Uint8Array() },
-            false,
+            { 
+                name: "HKDF", 
+                hash: "SHA-256", 
+                salt: new Uint8Array(), 
+                info: new Uint8Array() 
+            },
+            true, // Изменено на true для извлечения ключа
             ["deriveKey"]
         );
 
@@ -232,7 +237,7 @@ async function establishSecureSession(myPrivateKey, theirPublicKey) {
             },
             baseKey,
             AES_ALG,
-            false,
+            true, // Изменено на true
             ["encrypt", "decrypt"]
         );
     } catch (error) {
@@ -241,63 +246,85 @@ async function establishSecureSession(myPrivateKey, theirPublicKey) {
     }
 }
 
-async function encryptMessage(sessionKey, message, signingKey) {
+async function encryptMessageHybrid(sessionKey, message, signingKey) {
     try {
         const iv = crypto.getRandomValues(new Uint8Array(12));
-        const encoder = new TextEncoder();
-        const encodedMsg = encoder.encode(message);
+        const encoded = new TextEncoder().encode(ilyazhEncrypt(message));
         
         const ciphertext = await crypto.subtle.encrypt(
-            { ...AES_ALG, iv },
+            { 
+                name: "AES-GCM", 
+                iv: iv,
+                tagLength: 128 // Явно указываем длину тега
+            },
             sessionKey,
-            encodedMsg
+            encoded
         );
         
         const signature = await crypto.subtle.sign(
-            SIGN_ALG,
+            { 
+                name: "ECDSA", 
+                hash: {name: "SHA-256"} 
+            },
             signingKey,
             ciphertext
         );
         
-        return arrayBufferToBase64(new Uint8Array([
-            ...iv,
-            ...new Uint8Array(signature),
-            ...new Uint8Array(ciphertext)
-        ]));
+// Создаем единый ArrayBuffer
+        const totalLength = iv.byteLength + signature.byteLength + ciphertext.byteLength;
+        const combined = new Uint8Array(totalLength);
+        combined.set(new Uint8Array(iv), 0);
+        combined.set(new Uint8Array(signature), iv.byteLength);
+        combined.set(new Uint8Array(ciphertext), iv.byteLength + signature.byteLength);
+        
+        return arrayBufferToBase64(combined.buffer);
     } catch (error) {
-        console.error("Ошибка шифрования сообщения:", error);
-        throw new Error("Ошибка шифрования сообщения");
+        console.error("Ошибка гибридного шифрования:", error);
+        throw new Error("Hybrid encryption failed: " + error.message);
     }
 }
 
-async function decryptMessage(sessionKey, base64Packet, publicKey) {
+async function decryptMessageHybrid(sessionKey, base64Packet, publicKey) {
     try {
         const packet = base64ToArrayBuffer(base64Packet);
-        const iv = packet.slice(0, 12);
-        const signature = packet.slice(12, 12 + 64);
-        const ciphertext = packet.slice(12 + 64);
+        const packetView = new Uint8Array(packet);
+        
+        // IV (12 байт)
+        const iv = packetView.slice(0, 12);
+        
+        // Подпись ECDSA (64 байта для P-256)
+        const signature = packetView.slice(12, 76);
+        
+        // Шифртекст (остальные байты)
+        const ciphertext = packetView.slice(76);
         
         const valid = await crypto.subtle.verify(
-            SIGN_ALG,
+            { 
+                name: "ECDSA", 
+                hash: {name: "SHA-256"} 
+            },
             publicKey,
             signature,
             ciphertext
         );
         
-        if (!valid) {
-            throw new Error("Недействительная подпись");
-        }
+        if (!valid) throw new Error("Подпись недействительна");
         
-        const plaintext = await crypto.subtle.decrypt(
-            { ...AES_ALG, iv },
+        const decrypted = await crypto.subtle.decrypt(
+            { 
+                name: "AES-GCM", 
+                iv: iv,
+                tagLength: 128
+            },
             sessionKey,
             ciphertext
         );
         
-        return new TextDecoder().decode(plaintext);
+        const ilyazhDecrypted = ilyazhDecrypt(new TextDecoder().decode(decrypted));
+        return ilyazhDecrypted;
     } catch (error) {
-        console.error("Ошибка дешифровки сообщения:", error);
-        throw new Error("Ошибка дешифровки сообщения");
+        console.error("Ошибка гибридной дешифровки:", error);
+        throw new Error("Hybrid decryption failed: " + error.message);
     }
 }
 
