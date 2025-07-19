@@ -29,7 +29,7 @@ function generateKey(userId, timestamp, salt) {
 
 function ilyazhEncrypt(plaintext, key) {
     let encrypted = '';
-    for (let i = 0; i < plaintext.length; i++) {
+    for (let i = 0; i < plaintext.length; ++i) {
         const pChar = plaintext[i];
         const kChar = key[i % key.length];
 
