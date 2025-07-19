@@ -237,7 +237,13 @@ async function encryptMessage() {
         }
         
         const userId = Object.keys(users)[0];
-        const publicKey = await importPublicKey(users[userId].publicKey);
+        const userData = users[userId];
+        
+        if (!userData.publicKey) {
+            throw new Error("Публичный ключ пользователя не найден");
+        }
+        
+        const publicKey = await importPublicKey(userData.publicKey);
         
         // Установка сессии
         const sessionKey = await establishSecureSession(
@@ -269,21 +275,26 @@ async function decryptMessage() {
     }
     
     try {
-        // Получаем публичный ключ отправителя
         const recipient = document.getElementById('recipient').value.trim();
         if (!recipient) throw new Error("Укажите отправителя");
         
         const snapshot = await db.ref('users').orderByChild('username').equalTo(recipient).once('value');
         const users = snapshot.val();
+        
         if (!users) throw new Error("Пользователь не найден");
         
         const userId = Object.keys(users)[0];
-        const publicKey = await importSigningKey(users[userId].publicKey);
+        const userData = users[userId];
         
-        // Установка сессии (нужен приватный ключ получателя и публичный ключ отправителя)
+        if (!userData.publicKey) throw new Error("Публичный ключ не найден");
+        
+        const publicKey = await importSigningKey(userData.publicKey);
+        const encryptionPublicKey = await importPublicKey(userData.publicKey);
+        
+        // Установка сессии
         const sessionKey = await establishSecureSession(
             currentUser.keys.encryptionKeyPair.privateKey,
-            await importPublicKey(users[userId].publicKey)
+            encryptionPublicKey
         );
         
         // Дешифровка
@@ -373,6 +384,10 @@ async function sendMessage() {
         const snapshot = await db.ref(`users/${currentChat}`).once('value');
         const recipient = snapshot.val();
         
+        if (!recipient || !recipient.publicKey) {
+            throw new Error("Публичный ключ получателя не найден");
+        }
+        
         // Импортируем публичный ключ
         const publicKey = await importPublicKey(recipient.publicKey);
         
@@ -397,11 +412,28 @@ async function sendMessage() {
             timestamp: firebase.database.ServerValue.TIMESTAMP
         });
         
+        // Добавляем сообщение в интерфейс
+        const chatMessages = document.getElementById('chatMessages');
+        chatMessages.innerHTML = ''; // Очищаем предыдущее состояние
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message message-sent';
+        messageElement.innerHTML = `
+            <div class="message-sender">Вы</div>
+            <div class="message-text">${message}</div>
+            <div class="message-time">${new Date().toLocaleTimeString()}</div>
+        `;
+        chatMessages.appendChild(messageElement);
+        
         // Очищаем поле ввода
         messageInput.value = '';
+        
+        // Прокручиваем вниз
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
     } catch (error) {
         console.error("Ошибка отправки сообщения:", error);
-        alert("Не удалось отправить сообщение");
+        alert("Не удалось отправить сообщение: " + error.message);
     }
 }
 
