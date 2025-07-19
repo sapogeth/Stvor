@@ -440,35 +440,58 @@ async function sendMessage() {
 let currentChat = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('registerBtn').addEventListener('click', register);
-    document.getElementById('loginBtn').addEventListener('click', login);
-    document.getElementById('logoutBtn').addEventListener('click', logout);
-    document.getElementById('showRegisterFormBtn').addEventListener('click', showRegisterForm);
-    document.getElementById('showLoginFormBtn').addEventListener('click', showLoginForm);
+    // 1. Добавляем проверку существования элементов
+    const registerBtn = document.getElementById('registerBtn');
+    const loginBtn = document.getElementById('loginBtn');
     
-    document.querySelectorAll('.nav-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            switchSection(button.dataset.target);
-        });
+    if (registerBtn) {
+        registerBtn.addEventListener('click', register);
+    } else {
+        console.error("Кнопка регистрации не найдена");
+    }
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', login);
+    } else {
+        console.error("Кнопка входа не найдена");
+    }
+    
+    // 2. Проверяем инициализацию Firebase
+    try {
+        firebase.initializeApp(firebaseConfig);
+        console.log("Firebase инициализирован");
+    } catch (error) {
+        console.error("Ошибка инициализации Firebase:", error);
+    }
+    
+    // 3. Добавляем обработку состояния аутентификации
+    auth.onAuthStateChanged(user => {
+        console.log("Состояние аутентификации изменено:", user ? "вошел" : "вышел");
+        handleAuthStateChange(user);
     });
+
+async function handleAuthStateChange(user) {
+    console.log("Обработка изменения состояния:", user);
     
-    document.getElementById('chatMessageInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const mainApp = document.getElementById('mainApp');
+    
+    if (!welcomeScreen || !mainApp) {
+        console.error("Элементы интерфейса не найдены");
+        return;
+    }
+    
+    if (user) {
+        try {
+            console.log("Пользователь вошел:", user.uid);
+            // ... остальная реализация ...
+        } catch (error) {
+            console.error("Ошибка обработки входа:", error);
         }
-    });
-    
-    // Обработчики для кнопок шифрования
-    document.getElementById('encryptMessageBtn').addEventListener('click', encryptMessage);
-    document.getElementById('decryptMessageBtn').addEventListener('click', decryptMessage);
-    
-    // Обработчики для поиска
-    document.getElementById('searchUsersBtn').addEventListener('click', searchUsers);
-    document.getElementById('searchAllUsersBtn').addEventListener('click', loadContacts);
-    
-    // Обработчик отправки сообщений
-    document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
-    
-    auth.onAuthStateChanged(handleAuthStateChange);
-});
+    } else {
+        console.log("Пользователь вышел");
+        welcomeScreen.style.display = 'flex';
+        mainApp.style.display = 'none';
+    }
+}
+
