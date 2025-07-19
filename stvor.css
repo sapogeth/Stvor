@@ -352,16 +352,19 @@ h1 {
 }
 
 .message-sent {
+    background: #e3f2fd;
     align-self: flex-end;
-    background: var(--primary);
-    color: white;
-    border-bottom-right-radius: 5px;
+    border-radius: 18px 18px 0 18px;
 }
 
 .message-received {
+    background: #f5f5f5;
     align-self: flex-start;
-    background: var(--surface-light);
-    border-bottom-left-radius: 5px;
+    border-radius: 18px 18px 18px 0;
+}
+
+.message-text {
+    padding: 10px;
 }
 
 .message-sender {
