@@ -187,13 +187,16 @@ async function importPublicKey(base64Key) {
         return crypto.subtle.importKey(
             "spki",
             keyData,
-            ECDH_ALG,
+            {
+                name: "ECDH",
+                namedCurve: "P-256"
+            },
             true,
             ["deriveKey"]
         );
     } catch (error) {
         console.error("Ошибка импорта ключа:", error);
-        throw new Error("Ошибка импорта ключа");
+        throw new Error("Ошибка импорта ключа: " + error.message);
     }
 }
 
